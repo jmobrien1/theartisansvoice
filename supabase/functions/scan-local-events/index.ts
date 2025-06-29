@@ -1,21 +1,20 @@
 /*
-  # DEFINITIVE EVENT ENGINE REBUILD - SCRAPERAPI INTEGRATION
+  # DEFINITIVE EVENT ENGINE REBUILD - APIFY PIPELINE ARCHITECTURE
 
-  This is a complete architectural overhaul using ScraperAPI to guarantee reliable data retrieval.
+  This is a complete architectural overhaul that separates data acquisition from processing.
+  
+  NEW ARCHITECTURE:
+  1. Apify handles all web scraping (scheduled, reliable, professional)
+  2. This function processes the clean data from Apify
+  3. AI performs intelligent filtering and analysis
+  4. Results saved as research briefs for user selection
   
   FIXES ALL ISSUES:
-  - ✅ Uses ScraperAPI for robust, professional-grade web scraping
-  - ✅ Processes ALL 11 sources reliably (no more single-source failures)
-  - ✅ Intelligent date range control (next 3 months default)
-  - ✅ Smart AI filtering with precise competitor detection
+  - ✅ No more direct web scraping (Apify handles this professionally)
+  - ✅ Processes ALL sources reliably (Apify guarantees data delivery)
+  - ✅ Intelligent AI filtering with precise competitor detection
   - ✅ User-controlled content creation (no automatic generation)
-  - ✅ Comprehensive error handling and source performance tracking
-  
-  ARCHITECTURE:
-  1. ScraperAPI handles all web requests (headless browsers, proxies, retries)
-  2. Our function orchestrates the calls and processes the data
-  3. AI performs intelligent filtering and date extraction
-  4. Results saved as research briefs for user selection
+  - ✅ Comprehensive error handling and performance tracking
 */
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
@@ -26,101 +25,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-// COMPREHENSIVE EVENT SOURCES - All RSS feeds + curated HTML sources
-const EVENT_SOURCES = [
-  // === CATEGORY 1: RSS FEEDS (PRIMARY SOURCES) ===
-  {
-    url: 'https://www.visitloudoun.org/event/rss/',
-    name: 'Visit Loudoun Events RSS',
-    region: 'Loudoun County, VA',
-    type: 'rss',
-    priority: 'high',
-    description: 'DC Wine Country events - RSS feed with structured data'
-  },
-  {
-    url: 'https://www.fxva.com/rss/',
-    name: 'FXVA (Visit Fairfax) RSS',
-    region: 'Fairfax County, VA',
-    type: 'rss',
-    priority: 'high',
-    description: 'Large, affluent county RSS feed with major festivals'
-  },
-  {
-    url: 'https://www.virginia.org/feeds/events/',
-    name: 'Virginia Tourism Events RSS',
-    region: 'Virginia',
-    type: 'rss',
-    priority: 'high',
-    description: 'Official state tourism RSS with largest festivals'
-  },
-  {
-    url: 'https://www.visitpwc.com/events/rss',
-    name: 'Prince William County Events RSS',
-    region: 'Prince William County, VA',
-    type: 'rss',
-    priority: 'medium',
-    description: 'Official tourism RSS for local breweries and historic sites'
-  },
-  {
-    url: 'https://visitfauquier.com/all-events/feed/',
-    name: 'Visit Fauquier Events RSS',
-    region: 'Fauquier County, VA',
-    type: 'rss',
-    priority: 'medium',
-    description: 'Tourism-focused RSS for Warrenton and Marshall area'
-  },
-  {
-    url: 'https://northernvirginiamag.com/events/feed/',
-    name: 'Northern Virginia Magazine Events RSS',
-    region: 'Northern Virginia',
-    type: 'rss',
-    priority: 'high',
-    description: 'Curated high-end food, wine, and cultural events'
-  },
-  {
-    url: 'https://www.discoverclarkecounty.com/events/feed/',
-    name: 'Discover Clarke County Events RSS',
-    region: 'Clarke County, VA',
-    type: 'rss',
-    priority: 'medium',
-    description: 'Clarke County tourism with outdoor activities'
-  },
-  
-  // === CATEGORY 2: HTML FALLBACK SOURCES ===
-  {
-    url: 'https://www.fxva.com/events/',
-    name: 'FXVA Events HTML',
-    region: 'Fairfax County, VA',
-    type: 'html',
-    priority: 'medium',
-    description: 'Fallback HTML source for Fairfax events'
-  },
-  {
-    url: 'https://www.virginia.org/events/',
-    name: 'Virginia Tourism Events HTML',
-    region: 'Virginia',
-    type: 'html',
-    priority: 'medium',
-    description: 'Fallback HTML source for state tourism events'
-  },
-  {
-    url: 'https://www.fauquiercounty.gov/government/calendar',
-    name: 'Fauquier County Government Calendar',
-    region: 'Fauquier County, VA',
-    type: 'html',
-    priority: 'low',
-    description: 'Official government calendar with community events'
-  },
-  {
-    url: 'https://www.warrencountyva.gov/events',
-    name: 'Warren County Events',
-    region: 'Warren County, VA',
-    type: 'html',
-    priority: 'low',
-    description: 'Official county calendar including Front Royal area'
-  }
-];
-
 interface PotentialEvent {
   title: string;
   description: string;
@@ -128,7 +32,7 @@ interface PotentialEvent {
   published: string;
   location?: string;
   source_name: string;
-  source_region: string;
+  source_url: string;
   event_date?: string;
 }
 
@@ -140,21 +44,7 @@ interface FilteredEvent {
   event_url: string;
   relevance_score: number;
   source_url: string;
-  source_region: string;
-}
-
-interface SourceResult {
-  url: string;
-  name: string;
-  region: string;
-  success: boolean;
-  error?: string;
-  priority: string;
-  type: string;
-  events_found: number;
-  content_length: number;
-  events_extracted: PotentialEvent[];
-  scraper_api_used: boolean;
+  source_name: string;
 }
 
 interface RequestPayload {
@@ -325,10 +215,10 @@ function parseXML(xmlString: string): any {
   }
 }
 
-// Enhanced RSS event extraction
-function extractRSSEvents(rssXml: string, source: any, startDate: Date, endDate: Date): PotentialEvent[] {
+// Enhanced RSS event extraction from Apify data
+function extractRSSEvents(rssXml: string, sourceUrl: string, sourceName: string, startDate: Date, endDate: Date): PotentialEvent[] {
   try {
-    console.log(`📰 Processing RSS feed from ${source.name} (${source.region})`);
+    console.log(`📰 Processing RSS data from ${sourceName}`);
     
     const parsedXML = parseXML(rssXml);
     const items = parsedXML.items || [];
@@ -349,10 +239,10 @@ function extractRSSEvents(rssXml: string, source: any, startDate: Date, endDate:
         const event: PotentialEvent = {
           title: cleanTitle,
           description: cleanDescription,
-          link: item.link || source.url,
+          link: item.link || sourceUrl,
           published: item.pubDate || '',
-          source_name: source.name,
-          source_region: source.region,
+          source_name: sourceName,
+          source_url: sourceUrl,
           event_date: eventDate || undefined
         };
         
@@ -363,19 +253,19 @@ function extractRSSEvents(rssXml: string, source: any, startDate: Date, endDate:
       }
     });
     
-    console.log(`✅ Extracted ${events.length} events in date range from ${source.name} RSS`);
+    console.log(`✅ Extracted ${events.length} events in date range from ${sourceName} RSS`);
     return events;
     
   } catch (error) {
-    console.error(`Error parsing RSS from ${source.name}:`, error);
+    console.error(`Error parsing RSS from ${sourceName}:`, error);
     return [];
   }
 }
 
-// Enhanced HTML event extraction
-function extractHTMLEvents(html: string, source: any, startDate: Date, endDate: Date): PotentialEvent[] {
+// Enhanced HTML event extraction from Apify data
+function extractHTMLEvents(html: string, sourceUrl: string, sourceName: string, startDate: Date, endDate: Date): PotentialEvent[] {
   try {
-    console.log(`🌐 Processing HTML from ${source.name} (${source.region})`);
+    console.log(`🌐 Processing HTML data from ${sourceName}`);
     
     // Remove script and style tags
     let cleaned = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
@@ -407,11 +297,11 @@ function extractHTMLEvents(html: string, source: any, startDate: Date, endDate: 
           
           const event: PotentialEvent = {
             title: eventText,
-            description: `Event found on ${source.name}`,
-            link: source.url,
+            description: `Event found on ${sourceName}`,
+            link: sourceUrl,
             published: new Date().toISOString(),
-            source_name: source.name,
-            source_region: source.region,
+            source_name: sourceName,
+            source_url: sourceUrl,
             event_date: eventDate || undefined
           };
           
@@ -423,141 +313,13 @@ function extractHTMLEvents(html: string, source: any, startDate: Date, endDate: 
       }
     });
     
-    console.log(`✅ Extracted ${events.length} potential events in date range from ${source.name} HTML`);
+    console.log(`✅ Extracted ${events.length} potential events in date range from ${sourceName} HTML`);
     return events;
     
   } catch (error) {
-    console.error(`Error extracting events from HTML ${source.name}:`, error);
+    console.error(`Error extracting events from HTML ${sourceName}:`, error);
     return [];
   }
-}
-
-// ScraperAPI-powered source fetching with comprehensive error handling
-async function fetchSourceDataWithScraperAPI(source: any, startDate: Date, endDate: Date, scraperApiKey: string): Promise<SourceResult> {
-  const result: SourceResult = {
-    url: source.url,
-    name: source.name,
-    region: source.region,
-    success: false,
-    priority: source.priority,
-    type: source.type,
-    events_found: 0,
-    content_length: 0,
-    events_extracted: [],
-    scraper_api_used: true
-  };
-
-  try {
-    console.log(`🔄 Fetching via ScraperAPI: ${source.name} (${source.type.toUpperCase()}, ${source.priority} priority)`);
-    
-    // Construct ScraperAPI URL
-    const scraperUrl = `http://api.scraperapi.com?api_key=${scraperApiKey}&url=${encodeURIComponent(source.url)}&render=false&country_code=us`;
-    
-    const response = await fetch(scraperUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': source.type === 'rss' ? 
-          'application/rss+xml, application/xml, text/xml, application/atom+xml, */*' : 
-          'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      },
-      signal: AbortSignal.timeout(60000) // 60 second timeout for ScraperAPI
-    });
-    
-    if (!response.ok) {
-      throw new Error(`ScraperAPI HTTP ${response.status}: ${response.statusText}`);
-    }
-    
-    const text = await response.text();
-    result.content_length = text.length;
-    
-    // Validate we got actual content
-    if (text.length < 100) {
-      throw new Error('ScraperAPI returned insufficient content (possible blocking)');
-    }
-    
-    // Extract events based on source type
-    if (source.type === 'rss') {
-      result.events_extracted = extractRSSEvents(text, source, startDate, endDate);
-    } else {
-      result.events_extracted = extractHTMLEvents(text, source, startDate, endDate);
-    }
-    
-    result.events_found = result.events_extracted.length;
-    result.success = true;
-    
-    console.log(`✅ ScraperAPI success for ${source.name}: ${result.events_found} events (${result.content_length} chars)`);
-    
-  } catch (error) {
-    result.error = error instanceof Error ? error.message : 'Unknown ScraperAPI error';
-    result.scraper_api_used = true;
-    console.error(`❌ ScraperAPI failed for ${source.name}:`, result.error);
-  }
-
-  return result;
-}
-
-// Fallback direct fetch (for comparison and backup)
-async function fetchSourceDataDirect(source: any, startDate: Date, endDate: Date): Promise<SourceResult> {
-  const result: SourceResult = {
-    url: source.url,
-    name: source.name,
-    region: source.region,
-    success: false,
-    priority: source.priority,
-    type: source.type,
-    events_found: 0,
-    content_length: 0,
-    events_extracted: [],
-    scraper_api_used: false
-  };
-
-  try {
-    console.log(`🔄 Direct fetch fallback: ${source.name}`);
-    
-    const response = await fetch(source.url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': source.type === 'rss' ? 
-          'application/rss+xml, application/xml, text/xml, application/atom+xml, */*' : 
-          'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'DNT': '1',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Cache-Control': 'max-age=0'
-      },
-      signal: AbortSignal.timeout(30000) // 30 second timeout
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    
-    const text = await response.text();
-    result.content_length = text.length;
-    
-    // Extract events based on source type
-    if (source.type === 'rss') {
-      result.events_extracted = extractRSSEvents(text, source, startDate, endDate);
-    } else {
-      result.events_extracted = extractHTMLEvents(text, source, startDate, endDate);
-    }
-    
-    result.events_found = result.events_extracted.length;
-    result.success = true;
-    
-    console.log(`✅ Direct fetch success for ${source.name}: ${result.events_found} events`);
-    
-  } catch (error) {
-    result.error = error instanceof Error ? error.message : 'Unknown direct fetch error';
-    console.error(`❌ Direct fetch failed for ${source.name}:`, result.error);
-  }
-
-  return result;
 }
 
 Deno.serve(async (req: Request) => {
@@ -590,149 +352,128 @@ Deno.serve(async (req: Request) => {
       endDate.setMonth(endDate.getMonth() + 3);
     }
     
-    console.log(`🚀 DEFINITIVE EVENT ENGINE WITH SCRAPERAPI STARTING`);
+    console.log(`🚀 DEFINITIVE EVENT ENGINE WITH APIFY PIPELINE STARTING`);
     console.log(`📅 Date range: ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`);
-    console.log(`📊 Total sources configured: ${EVENT_SOURCES.length}`);
     
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Check for ScraperAPI key
-    const scraperApiKey = Deno.env.get('SCRAPER_API_KEY');
-    if (!scraperApiKey) {
-      console.error('❌ SCRAPER_API_KEY not found - falling back to direct fetch (unreliable)');
-    } else {
-      console.log('✅ ScraperAPI key found - using professional-grade scraping');
+    // --- Step 1: Fetch Unprocessed Raw Data from Apify ---
+    console.log('📡 Fetching unprocessed raw data from Apify pipeline...');
+    
+    const { data: rawEvents, error: rawError } = await supabase
+      .from('raw_events')
+      .select('*')
+      .eq('is_processed', false)
+      .order('created_at', { ascending: true });
+
+    if (rawError) {
+      throw new Error(`Failed to fetch raw events: ${rawError.message}`);
     }
 
-    // --- Step 1: Fetch from ALL Sources using ScraperAPI (with direct fallback) ---
-    console.log('📡 Fetching from ALL sources using ScraperAPI...');
-    
-    const sourceResults = await Promise.allSettled(
-      EVENT_SOURCES.map(async (source) => {
-        if (scraperApiKey) {
-          // Try ScraperAPI first
-          const scraperResult = await fetchSourceDataWithScraperAPI(source, startDate, endDate, scraperApiKey);
-          if (scraperResult.success && scraperResult.events_found > 0) {
-            return scraperResult;
-          }
-          
-          // If ScraperAPI fails or finds no events, try direct fetch as fallback
-          console.log(`⚠️ ScraperAPI failed for ${source.name}, trying direct fetch...`);
-          const directResult = await fetchSourceDataDirect(source, startDate, endDate);
-          
-          // Return the better result
-          if (directResult.success && directResult.events_found > scraperResult.events_found) {
-            return directResult;
-          } else {
-            return scraperResult; // Return ScraperAPI result even if it failed (for error reporting)
-          }
-        } else {
-          // No ScraperAPI key, use direct fetch only
-          return await fetchSourceDataDirect(source, startDate, endDate);
-        }
-      })
-    );
-
-    const processedResults: SourceResult[] = sourceResults.map((result, index) => {
-      if (result.status === 'fulfilled') {
-        return result.value;
-      } else {
-        const source = EVENT_SOURCES[index];
-        return {
-          url: source.url,
-          name: source.name,
-          region: source.region,
-          success: false,
-          error: result.reason instanceof Error ? result.reason.message : 'Promise rejected',
-          priority: source.priority,
-          type: source.type,
-          events_found: 0,
-          content_length: 0,
-          events_extracted: [],
-          scraper_api_used: !!scraperApiKey
-        };
-      }
-    });
-
-    // Analyze results
-    const successfulSources = processedResults.filter(r => r.success && r.events_found > 0);
-    const failedSources = processedResults.filter(r => !r.success);
-    const scraperApiSources = processedResults.filter(r => r.scraper_api_used);
-    const directFetchSources = processedResults.filter(r => !r.scraper_api_used);
-    const rssSources = processedResults.filter(r => r.type === 'rss');
-    const htmlSources = processedResults.filter(r => r.type === 'html');
-    const successfulRSS = rssSources.filter(r => r.success && r.events_found > 0);
-    const successfulHTML = htmlSources.filter(r => r.success && r.events_found > 0);
-
-    console.log(`📊 COMPREHENSIVE SCRAPERAPI FETCH RESULTS:`);
-    console.log(`   Total sources: ${EVENT_SOURCES.length}`);
-    console.log(`   ScraperAPI used: ${scraperApiSources.length}/${EVENT_SOURCES.length}`);
-    console.log(`   Direct fetch used: ${directFetchSources.length}/${EVENT_SOURCES.length}`);
-    console.log(`   Successful with events: ${successfulSources.length}`);
-    console.log(`   RSS feeds successful: ${successfulRSS.length}/${rssSources.length}`);
-    console.log(`   HTML sources successful: ${successfulHTML.length}/${htmlSources.length}`);
-    console.log(`   Failed sources: ${failedSources.length}`);
-
-    // Log successful sources
-    successfulSources.forEach(source => {
-      const method = source.scraper_api_used ? 'ScraperAPI' : 'Direct';
-      console.log(`   ✅ ${source.name}: ${source.events_found} events (${source.type.toUpperCase()}, ${method})`);
-    });
-
-    // Log failed sources
-    failedSources.forEach(source => {
-      const method = source.scraper_api_used ? 'ScraperAPI' : 'Direct';
-      console.log(`   ❌ ${source.name}: ${source.error} (${source.type.toUpperCase()}, ${method})`);
-    });
-
-    // Combine all extracted events
-    const allPotentialEvents: PotentialEvent[] = [];
-    successfulSources.forEach(source => {
-      allPotentialEvents.push(...source.events_extracted);
-    });
-
-    console.log(`🎯 Total potential events extracted: ${allPotentialEvents.length}`);
-
-    if (allPotentialEvents.length === 0) {
-      console.log('ℹ️ No events extracted from any source');
+    if (!rawEvents || rawEvents.length === 0) {
+      console.log('ℹ️ No unprocessed raw data found from Apify');
       return new Response(JSON.stringify({
         success: true,
-        message: "Scan completed - no events found in any source for the specified date range",
+        message: "No new data from Apify to process. Run Apify scraper first or wait for scheduled run.",
+        data_source: 'apify_pipeline',
+        raw_events_processed: 0,
         events_extracted: 0,
         events_after_gatekeeper: 0,
         events_final: 0,
-        scraped_sources: successfulSources.length,
-        total_sources: EVENT_SOURCES.length,
-        scraper_api_sources: scraperApiSources.length,
-        direct_fetch_sources: directFetchSources.length,
-        rss_sources_successful: successfulRSS.length,
-        html_sources_successful: successfulHTML.length,
-        failed_sources: failedSources.length,
-        scraper_api_available: !!scraperApiKey,
+        apify_pipeline_status: 'no_new_data',
         date_range: {
           start: startDate.toISOString(),
           end: endDate.toISOString(),
           duration_days: Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
-        },
-        source_performance: processedResults.map(s => ({
-          name: s.name,
-          type: s.type,
-          priority: s.priority,
-          success: s.success,
-          events_found: s.events_found,
-          region: s.region,
-          scraper_api_used: s.scraper_api_used,
-          error: s.error
-        }))
+        }
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    // --- Step 2: AI Gatekeeper to Filter Out Competitor Events ---
+    console.log(`📊 Found ${rawEvents.length} unprocessed raw data entries from Apify`);
+
+    // --- Step 2: Extract Events from All Raw Data ---
+    console.log('🔍 Extracting events from Apify raw data...');
+    
+    const allPotentialEvents: PotentialEvent[] = [];
+    const processedRawEventIds: string[] = [];
+
+    for (const rawEvent of rawEvents) {
+      try {
+        console.log(`Processing: ${rawEvent.source_name || rawEvent.source_url} (${rawEvent.content_length} chars)`);
+        
+        let extractedEvents: PotentialEvent[] = [];
+        
+        // Determine if this is RSS or HTML based on content
+        if (rawEvent.raw_content.includes('<rss') || rawEvent.raw_content.includes('<feed') || 
+            rawEvent.raw_content.includes('<item>') || rawEvent.raw_content.includes('<entry>')) {
+          // RSS/XML content
+          extractedEvents = extractRSSEvents(
+            rawEvent.raw_content, 
+            rawEvent.source_url, 
+            rawEvent.source_name || rawEvent.source_url,
+            startDate, 
+            endDate
+          );
+        } else {
+          // HTML content
+          extractedEvents = extractHTMLEvents(
+            rawEvent.raw_content, 
+            rawEvent.source_url, 
+            rawEvent.source_name || rawEvent.source_url,
+            startDate, 
+            endDate
+          );
+        }
+        
+        allPotentialEvents.push(...extractedEvents);
+        processedRawEventIds.push(rawEvent.id);
+        
+        console.log(`✅ Extracted ${extractedEvents.length} events from ${rawEvent.source_name}`);
+        
+      } catch (error) {
+        console.error(`Error processing raw event ${rawEvent.id}:`, error);
+        // Mark as processed even if failed to avoid reprocessing
+        processedRawEventIds.push(rawEvent.id);
+      }
+    }
+
+    console.log(`🎯 Total potential events extracted from Apify data: ${allPotentialEvents.length}`);
+
+    if (allPotentialEvents.length === 0) {
+      // Mark raw events as processed even if no events found
+      if (processedRawEventIds.length > 0) {
+        await supabase
+          .from('raw_events')
+          .update({ is_processed: true })
+          .in('id', processedRawEventIds);
+      }
+
+      console.log('ℹ️ No events extracted from Apify data');
+      return new Response(JSON.stringify({
+        success: true,
+        message: "Apify data processed - no events found in the specified date range",
+        data_source: 'apify_pipeline',
+        raw_events_processed: rawEvents.length,
+        events_extracted: 0,
+        events_after_gatekeeper: 0,
+        events_final: 0,
+        apify_pipeline_status: 'processed_no_events',
+        date_range: {
+          start: startDate.toISOString(),
+          end: endDate.toISOString(),
+          duration_days: Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+        }
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // --- Step 3: AI Gatekeeper to Filter Out Competitor Events ---
     console.log('🛡️ Running AI GATEKEEPER to filter out competitor events...');
     
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
@@ -741,9 +482,9 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({
         success: false,
         error: "OpenAI API key not configured - cannot filter events",
+        data_source: 'apify_pipeline',
         potential_events_found: allPotentialEvents.length,
-        scraped_sources: successfulSources.length,
-        scraper_api_available: !!scraperApiKey,
+        raw_events_processed: rawEvents.length,
         date_range: {
           start: startDate.toISOString(),
           end: endDate.toISOString()
@@ -824,16 +565,25 @@ ${JSON.stringify(allPotentialEvents)}`;
       console.log(`   Competitor events filtered out: ${allPotentialEvents.length - filteredEvents.length}`);
 
       if (filteredEvents.length === 0) {
+        // Mark raw events as processed
+        if (processedRawEventIds.length > 0) {
+          await supabase
+            .from('raw_events')
+            .update({ is_processed: true })
+            .in('id', processedRawEventIds);
+        }
+
         console.log('ℹ️ No relevant non-competitor events found after gatekeeper filtering');
         return new Response(JSON.stringify({ 
           success: true,
-          message: "Gatekeeper completed - no relevant non-competitor events found",
+          message: "Apify pipeline completed - no relevant non-competitor events found",
+          data_source: 'apify_pipeline',
+          raw_events_processed: rawEvents.length,
           events_extracted: allPotentialEvents.length,
           events_after_gatekeeper: 0,
           competitor_events_filtered: allPotentialEvents.length,
           events_final: 0,
-          scraped_sources: successfulSources.length,
-          scraper_api_available: !!scraperApiKey,
+          apify_pipeline_status: 'processed_no_relevant_events',
           date_range: {
             start: startDate.toISOString(),
             end: endDate.toISOString()
@@ -843,7 +593,7 @@ ${JSON.stringify(allPotentialEvents)}`;
         });
       }
 
-      // --- Step 3: Enhanced Analysis of Filtered Events ---
+      // --- Step 4: Enhanced Analysis of Filtered Events ---
       console.log('🤖 Running enhanced analysis on filtered non-competitor events...');
       
       const enhancedAnalysisPrompt = `You are an expert event analyst specializing in wine tourism and craft beverage marketing opportunities in Virginia. 
@@ -862,7 +612,7 @@ For each event, provide:
 - event_url: The direct link to the event page (use the provided link field)
 - relevance_score: Number from 6-10 (8-10 for food/tourism events, 6-7 for general community events)
 - source_url: The website where this event was found
-- source_region: The specific region/county this event is in
+- source_name: The name of the source website
 
 QUALITY STANDARDS:
 - Only include events with relevance_score of 6 or higher
@@ -909,22 +659,37 @@ ${JSON.stringify(filteredEvents)}`;
       
       // Log event details
       finalEvents.forEach((event, index) => {
-        console.log(`   ${index + 1}. ${event.event_name} (Score: ${event.relevance_score}/10, ${event.event_date}, ${event.source_region})`);
+        console.log(`   ${index + 1}. ${event.event_name} (Score: ${event.relevance_score}/10, ${event.event_date}, ${event.source_name})`);
         if (event.event_url) {
           console.log(`      URL: ${event.event_url}`);
         }
       });
 
+      // --- Step 5: Mark Raw Events as Processed ---
+      if (processedRawEventIds.length > 0) {
+        const { error: updateError } = await supabase
+          .from('raw_events')
+          .update({ is_processed: true })
+          .in('id', processedRawEventIds);
+
+        if (updateError) {
+          console.error('Error marking raw events as processed:', updateError);
+        } else {
+          console.log(`✅ Marked ${processedRawEventIds.length} raw events as processed`);
+        }
+      }
+
       if (finalEvents.length === 0) {
         console.log('ℹ️ No events passed final enhanced analysis');
         return new Response(JSON.stringify({ 
           success: true,
-          message: "Analysis completed - no events met final quality standards",
+          message: "Apify pipeline completed - no events met final quality standards",
+          data_source: 'apify_pipeline',
+          raw_events_processed: rawEvents.length,
           events_extracted: allPotentialEvents.length,
           events_after_gatekeeper: filteredEvents.length,
           events_final: 0,
-          scraped_sources: successfulSources.length,
-          scraper_api_available: !!scraperApiKey,
+          apify_pipeline_status: 'processed_no_quality_events',
           date_range: {
             start: startDate.toISOString(),
             end: endDate.toISOString()
@@ -934,7 +699,7 @@ ${JSON.stringify(filteredEvents)}`;
         });
       }
 
-      // --- Step 4: Create Research Briefs for Final Events (NO AUTOMATIC CONTENT GENERATION) ---
+      // --- Step 6: Create Research Briefs for Final Events (NO AUTOMATIC CONTENT GENERATION) ---
       console.log('📝 Creating research briefs for final filtered events (NO automatic content generation)...');
       
       const { data: wineries, error: wineriesError } = await supabase
@@ -950,8 +715,8 @@ ${JSON.stringify(filteredEvents)}`;
         return new Response(JSON.stringify({ 
           success: true,
           message: "Events found but no wineries to generate briefs for",
+          data_source: 'apify_pipeline',
           events_found: finalEvents.length,
-          scraper_api_available: !!scraperApiKey,
           date_range: {
             start: startDate.toISOString(),
             end: endDate.toISOString()
@@ -960,7 +725,7 @@ ${JSON.stringify(filteredEvents)}`;
             name: e.event_name, 
             date: e.event_date, 
             relevance: e.relevance_score,
-            source: e.source_region,
+            source: e.source_name,
             url: e.event_url
           }))
         }), { 
@@ -974,7 +739,7 @@ ${JSON.stringify(filteredEvents)}`;
 
       // For each final event, create research briefs for each winery (NO CONTENT GENERATION)
       for (const event of finalEvents) {
-        console.log(`📅 Processing filtered event: ${event.event_name} (${event.event_date}, ${event.source_region})`);
+        console.log(`📅 Processing filtered event: ${event.event_name} (${event.event_date}, ${event.source_name})`);
         
         for (const winery of wineries) {
           try {
@@ -990,16 +755,16 @@ ${JSON.stringify(filteredEvents)}`;
                 `Event URL: ${event.event_url}`,
                 `Relevance Score: ${event.relevance_score}/10`,
                 `Source: ${event.source_url}`,
-                `Region: ${event.source_region}`,
+                `Source Name: ${event.source_name}`,
                 `Discovered: ${new Date().toLocaleDateString()}`,
-                `Data Source: ScraperAPI + Two-step AI filtered scan`,
+                `Data Source: Apify Pipeline + Two-step AI filtered scan`,
                 `Status: Non-competitor event - safe for marketing`,
                 `Date Range: ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`
               ],
               local_event_name: event.event_name,
               local_event_date: event.event_date ? new Date(event.event_date).toISOString() : null,
               local_event_location: event.event_location,
-              seasonal_context: `REAL NON-COMPETITOR EVENT discovered by ScraperAPI-powered Event Engine with AI Gatekeeper filtering. ${event.event_summary} This is a verified non-competitive opportunity happening ${event.event_date} for ${winery.winery_name} to engage with the local wine community and create relevant marketing content. Event details and registration: ${event.event_url}`
+              seasonal_context: `REAL NON-COMPETITOR EVENT discovered by Apify-powered Event Engine with AI Gatekeeper filtering. ${event.event_summary} This is a verified non-competitive opportunity happening ${event.event_date} for ${winery.winery_name} to engage with the local wine community and create relevant marketing content. Event details and registration: ${event.event_url}`
             };
 
             const { data: newBrief, error: briefError } = await supabase
@@ -1025,11 +790,9 @@ ${JSON.stringify(filteredEvents)}`;
         }
       }
 
-      console.log(`🎉 DEFINITIVE ScraperAPI Event Engine completed successfully!`);
+      console.log(`🎉 DEFINITIVE Apify Event Engine completed successfully!`);
       console.log(`📊 FINAL RESULTS:`);
-      console.log(`   ScraperAPI available: ${!!scraperApiKey}`);
-      console.log(`   Sources fetched: ${successfulSources.length}/${EVENT_SOURCES.length}`);
-      console.log(`   ScraperAPI sources: ${scraperApiSources.length}`);
+      console.log(`   Apify raw events processed: ${rawEvents.length}`);
       console.log(`   Events extracted: ${allPotentialEvents.length}`);
       console.log(`   Events after gatekeeper: ${filteredEvents.length}`);
       console.log(`   Competitor events filtered: ${allPotentialEvents.length - filteredEvents.length}`);
@@ -1039,8 +802,9 @@ ${JSON.stringify(filteredEvents)}`;
 
       return new Response(JSON.stringify({
         success: true,
-        message: `DEFINITIVE ScraperAPI scan complete: processed ${finalEvents.length} non-competitor events from ${successfulSources.length} sources for ${wineries.length} wineries`,
-        data_source: 'scraperapi_two_step_ai_filtered_scan',
+        message: `DEFINITIVE Apify pipeline complete: processed ${finalEvents.length} non-competitor events from ${rawEvents.length} Apify sources for ${wineries.length} wineries`,
+        data_source: 'apify_pipeline_two_step_ai_filtered_scan',
+        raw_events_processed: rawEvents.length,
         events_extracted: allPotentialEvents.length,
         events_after_gatekeeper: filteredEvents.length,
         competitor_events_filtered: allPotentialEvents.length - filteredEvents.length,
@@ -1049,15 +813,7 @@ ${JSON.stringify(filteredEvents)}`;
         briefs_created: briefsCreatedCount,
         content_generated: 0, // No automatic content generation
         automatic_content_generation: false,
-        scraped_sources: successfulSources.length,
-        scraper_api_sources: scraperApiSources.length,
-        direct_fetch_sources: directFetchSources.length,
-        scraper_api_available: !!scraperApiKey,
-        rss_sources_successful: successfulRSS.length,
-        html_sources_successful: successfulHTML.length,
-        failed_sources: failedSources.length,
-        total_sources: EVENT_SOURCES.length,
-        coverage_regions: [...new Set(successfulSources.map(s => s.region))],
+        apify_pipeline_status: 'completed_successfully',
         date_range: {
           start: startDate.toISOString(),
           end: endDate.toISOString(),
@@ -1068,18 +824,14 @@ ${JSON.stringify(filteredEvents)}`;
           date: e.event_date, 
           location: e.event_location,
           relevance: e.relevance_score,
-          source: e.source_region,
+          source: e.source_name,
           url: e.event_url
         })),
-        source_performance: processedResults.map(s => ({
-          name: s.name,
-          type: s.type,
-          priority: s.priority,
-          success: s.success,
-          events_found: s.events_found,
-          region: s.region,
-          scraper_api_used: s.scraper_api_used,
-          error: s.error
+        apify_sources_processed: rawEvents.map(r => ({
+          source_name: r.source_name,
+          source_url: r.source_url,
+          content_length: r.content_length,
+          scrape_timestamp: r.scrape_timestamp
         }))
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -1090,9 +842,9 @@ ${JSON.stringify(filteredEvents)}`;
       return new Response(JSON.stringify({
         success: false,
         error: `AI analysis failed: ${openaiError.message}`,
+        data_source: 'apify_pipeline',
         potential_events_found: allPotentialEvents.length,
-        scraped_sources: successfulSources.length,
-        scraper_api_available: !!scraperApiKey,
+        raw_events_processed: rawEvents.length,
         date_range: {
           start: startDate.toISOString(),
           end: endDate.toISOString()
@@ -1104,7 +856,7 @@ ${JSON.stringify(filteredEvents)}`;
     }
 
   } catch (error) {
-    console.error('Error in definitive ScraperAPI scan-local-events function:', error);
+    console.error('Error in definitive Apify scan-local-events function:', error);
     return new Response(
       JSON.stringify({ 
         error: "Internal server error",

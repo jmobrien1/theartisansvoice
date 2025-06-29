@@ -23,7 +23,10 @@ import {
   CalendarDays,
   Shield,
   Server,
-  Cpu
+  Cpu,
+  Database,
+  Workflow,
+  ArrowRight
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
@@ -66,7 +69,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
   const [deletingEvent, setDeletingEvent] = useState<ProactiveEvent | null>(null);
   const [showScheduleSettings, setShowScheduleSettings] = useState(false);
   const [showDateRangeModal, setShowDateRangeModal] = useState(false);
-  const [showScraperApiInfo, setShowScraperApiInfo] = useState(false);
+  const [showApifySetupInfo, setShowApifySetupInfo] = useState(false);
   const [scheduleSettings, setScheduleSettings] = useState<ScheduleSettings>({
     enabled: true,
     day_of_week: 1, // Monday
@@ -85,7 +88,9 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
     totalEvents: 0,
     thisWeekEvents: 0,
     contentGenerated: 0,
-    lastScan: null as string | null
+    lastScan: null as string | null,
+    rawEventsCount: 0,
+    processedEventsCount: 0
   });
 
   useEffect(() => {
@@ -176,6 +181,16 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
         .eq('winery_id', wineryProfile.id)
         .not('research_brief_id', 'is', null);
 
+      // Get raw events stats
+      const { count: rawEventsCount } = await supabase
+        .from('raw_events')
+        .select('*', { count: 'exact', head: true });
+
+      const { count: processedEventsCount } = await supabase
+        .from('raw_events')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_processed', true);
+
       // Get last scan time
       const { data: lastBriefs } = await supabase
         .from('research_briefs')
@@ -189,7 +204,9 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
         totalEvents: totalEvents || 0,
         thisWeekEvents: thisWeekEvents || 0,
         contentGenerated: contentGenerated || 0,
-        lastScan: lastBriefs?.[0]?.created_at || null
+        lastScan: lastBriefs?.[0]?.created_at || null,
+        rawEventsCount: rawEventsCount || 0,
+        processedEventsCount: processedEventsCount || 0
       });
     } catch (error) {
       console.error('Error fetching stats:', error);
@@ -226,7 +243,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
     setScanning(true);
     
     try {
-      console.log('Triggering ScraperAPI-powered scan with date range:', customDateRange || dateRange);
+      console.log('Triggering Apify pipeline processing with date range:', customDateRange || dateRange);
       
       const requestBody = { 
         manual_trigger: true,
@@ -234,7 +251,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
         date_range: customDateRange || dateRange
       };
       
-      // Call the scan-local-events function
+      // Call the scan-local-events function (now processes Apify data)
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/scan-local-events`, {
         method: 'POST',
         headers: {
@@ -250,38 +267,29 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
         throw new Error(result.error || `HTTP error! status: ${response.status}`);
       }
 
-      console.log('ScraperAPI scan result:', result);
+      console.log('Apify pipeline result:', result);
 
       if (result.success) {
         const startDate = new Date(result.date_range?.start || dateRange.start_date);
         const endDate = new Date(result.date_range?.end || dateRange.end_date);
         const dateRangeText = `${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`;
         
-        const scraperApiUsed = result.scraper_api_available ? 'ScraperAPI + AI' : 'Direct fetch + AI';
-        
         if (result.events_final > 0) {
-          toast.success(`🎉 ${scraperApiUsed}: Found ${result.events_final} real events (${dateRangeText}) from ${result.scraped_sources}/${result.total_sources} sources!`);
+          toast.success(`🎉 Apify Pipeline: Found ${result.events_final} real events (${dateRangeText}) from ${result.raw_events_processed} Apify sources!`);
         } else if (result.events_extracted > 0) {
-          toast.success(`✅ ${scraperApiUsed}: Found ${result.events_extracted} events but ${result.competitor_events_filtered} were competitor events (filtered out).`);
+          toast.success(`✅ Apify Pipeline: Found ${result.events_extracted} events but ${result.competitor_events_filtered} were competitor events (filtered out).`);
+        } else if (result.raw_events_processed > 0) {
+          toast.success(`✅ Apify Pipeline: Processed ${result.raw_events_processed} sources for ${dateRangeText}! No new relevant events found.`);
         } else {
-          toast.success(`✅ ${scraperApiUsed}: Scan completed for ${dateRangeText}! No new relevant events found.`);
+          toast.success(`ℹ️ No new Apify data to process. Run Apify scraper first or wait for scheduled run.`);
         }
         
-        // Show source performance if available
-        if (result.source_performance) {
-          const successfulSources = result.source_performance.filter((s: any) => s.success && s.events_found > 0);
-          const scraperApiSources = result.source_performance.filter((s: any) => s.scraper_api_used);
-          console.log('ScraperAPI sources:', scraperApiSources.length);
-          console.log('Successful sources:', successfulSources.map((s: any) => `${s.name}: ${s.events_found} events`));
-        }
-        
-        if (!result.scraper_api_available) {
-          toast.error('⚠️ ScraperAPI not configured - using less reliable direct fetch. Configure SCRAPER_API_KEY for best results.', {
-            duration: 8000
-          });
+        // Show pipeline status
+        if (result.apify_pipeline_status) {
+          console.log('Apify pipeline status:', result.apify_pipeline_status);
         }
       } else {
-        toast.error(`❌ Scan failed: ${result.error || 'Unknown error'}`);
+        toast.error(`❌ Pipeline failed: ${result.error || 'Unknown error'}`);
       }
       
       // Refresh data after a short delay
@@ -291,18 +299,18 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
       }, 2000);
       
     } catch (error) {
-      console.error('Error triggering ScraperAPI scan:', error);
+      console.error('Error triggering Apify pipeline:', error);
       
       if (error instanceof Error) {
         if (error.message.includes('404')) {
-          toast.error('Event scanning function not found. Please check your Supabase Edge Functions deployment.');
+          toast.error('Event processing function not found. Please check your Supabase Edge Functions deployment.');
         } else if (error.message.includes('401') || error.message.includes('403')) {
           toast.error('Authentication error. Please check your Supabase configuration.');
         } else {
-          toast.error(`Scan failed: ${error.message}`);
+          toast.error(`Pipeline failed: ${error.message}`);
         }
       } else {
-        toast.error('Failed to trigger event scan. Please try again.');
+        toast.error('Failed to trigger event processing. Please try again.');
       }
     } finally {
       setScanning(false);
@@ -401,15 +409,15 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Event Engine</h1>
-          <p className="text-gray-600">Professional-grade event discovery with ScraperAPI + AI filtering</p>
+          <p className="text-gray-600">Professional-grade event discovery with Apify + AI pipeline</p>
         </div>
         <div className="flex items-center space-x-3">
           <button
-            onClick={() => setShowScraperApiInfo(true)}
+            onClick={() => setShowApifySetupInfo(true)}
             className="flex items-center px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
           >
-            <Shield className="h-4 w-4 mr-2" />
-            ScraperAPI Info
+            <Workflow className="h-4 w-4 mr-2" />
+            Apify Setup
           </button>
           <button
             onClick={() => setShowDateRangeModal(true)}
@@ -433,19 +441,19 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
             {scanning ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                ScraperAPI Scanning...
+                Processing Pipeline...
               </>
             ) : (
               <>
-                <Zap className="h-4 w-4 mr-2" />
-                Quick Scan (3 Months)
+                <Database className="h-4 w-4 mr-2" />
+                Process Apify Data
               </>
             )}
           </button>
         </div>
       </div>
 
-      {/* ScraperAPI Architecture */}
+      {/* Apify Pipeline Architecture */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -453,12 +461,12 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
       >
         <div className="flex items-center space-x-3 mb-4">
           <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-blue-600 rounded-lg flex items-center justify-center">
-            <Server className="h-5 w-5 text-white" />
+            <Workflow className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h3 className="font-semibold text-gray-900">🚀 DEFINITIVE SOLUTION: ScraperAPI + AI Architecture</h3>
+            <h3 className="font-semibold text-gray-900">🚀 DEFINITIVE SOLUTION: Apify Pipeline Architecture</h3>
             <p className="text-sm text-gray-600">
-              Professional-grade web scraping with headless browsers, proxies, and intelligent AI filtering
+              Professional two-stage pipeline: Apify handles scraping, our AI handles intelligent filtering
             </p>
           </div>
         </div>
@@ -469,8 +477,8 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
               <span className="text-purple-600 font-semibold text-xs">1</span>
             </div>
             <div>
-              <p className="font-medium text-gray-900">ScraperAPI Fetching</p>
-              <p className="text-gray-600">Professional service handles ALL 11 sources with headless browsers, proxies, and retries</p>
+              <p className="font-medium text-gray-900">Apify Data Acquisition</p>
+              <p className="text-gray-600">Professional scraping service handles ALL 11 sources on schedule, stores raw data reliably</p>
             </div>
           </div>
           
@@ -479,8 +487,8 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
               <span className="text-blue-600 font-semibold text-xs">2</span>
             </div>
             <div>
-              <p className="font-medium text-gray-900">AI Gatekeeper</p>
-              <p className="text-gray-600">Smart filtering removes competitor events and extracts dates within your range</p>
+              <p className="font-medium text-gray-900">AI Processing</p>
+              <p className="text-gray-600">Our function processes clean Apify data with smart competitor filtering and date extraction</p>
             </div>
           </div>
           
@@ -496,7 +504,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
         </div>
       </motion.div>
 
-      {/* Current Date Range Display */}
+      {/* Pipeline Status */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -505,9 +513,52 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
+            <Database className="h-5 w-5 text-blue-600" />
+            <div>
+              <p className="font-medium text-gray-900">Apify Pipeline Status</p>
+              <p className="text-sm text-gray-600">
+                {stats.rawEventsCount > 0 ? (
+                  <>
+                    {stats.rawEventsCount} raw data entries • {stats.processedEventsCount} processed • {stats.rawEventsCount - stats.processedEventsCount} pending
+                  </>
+                ) : (
+                  'No Apify data found - configure Apify scraper first'
+                )}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2">
+            {stats.rawEventsCount > stats.processedEventsCount ? (
+              <span className="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-full">
+                {stats.rawEventsCount - stats.processedEventsCount} pending
+              </span>
+            ) : (
+              <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                Up to date
+              </span>
+            )}
+            <button
+              onClick={() => setShowApifySetupInfo(true)}
+              className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+            >
+              Setup Guide
+            </button>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Current Date Range Display */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="bg-white rounded-xl border border-gray-200 p-4"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
             <CalendarDays className="h-5 w-5 text-blue-600" />
             <div>
-              <p className="font-medium text-gray-900">Current Scan Range</p>
+              <p className="font-medium text-gray-900">Current Processing Range</p>
               <p className="text-sm text-gray-600">
                 {new Date(dateRange.start_date).toLocaleDateString()} to {new Date(dateRange.end_date).toLocaleDateString()}
                 <span className="ml-2 text-blue-600">
@@ -530,7 +581,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
+          transition={{ delay: 0.3 }}
           className="bg-white rounded-xl border border-gray-200 p-6"
         >
           <div className="flex items-center justify-between">
@@ -547,7 +598,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+          transition={{ delay: 0.4 }}
           className="bg-white rounded-xl border border-gray-200 p-6"
         >
           <div className="flex items-center justify-between">
@@ -564,7 +615,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+          transition={{ delay: 0.5 }}
           className="bg-white rounded-xl border border-gray-200 p-6"
         >
           <div className="flex items-center justify-between">
@@ -581,12 +632,12 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
+          transition={{ delay: 0.6 }}
           className="bg-white rounded-xl border border-gray-200 p-6"
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 mb-1">Last Scan</p>
+              <p className="text-sm font-medium text-gray-600 mb-1">Last Processing</p>
               <p className="text-lg font-bold text-gray-700">
                 {stats.lastScan ? formatTimeAgo(stats.lastScan) : 'Never'}
               </p>
@@ -602,7 +653,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
+        transition={{ delay: 0.7 }}
         className="bg-white rounded-xl border border-gray-200 p-6"
       >
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Recently Discovered Events</h3>
@@ -627,7 +678,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
                         </span>
                       )}
                       <span className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">
-                        SCRAPERAPI
+                        APIFY PIPELINE
                       </span>
                       {event.event_url && (
                         <a
@@ -675,7 +726,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
                     )}
                     
                     <p className="text-xs text-gray-500">
-                      Discovered {formatTimeAgo(event.created_at)} via ScraperAPI + AI filtering
+                      Discovered {formatTimeAgo(event.created_at)} via Apify Pipeline + AI filtering
                     </p>
                   </div>
                   
@@ -724,10 +775,10 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
           </div>
         ) : (
           <div className="text-center py-8">
-            <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+            <Database className="h-12 w-12 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500">No events discovered yet</p>
             <p className="text-sm text-gray-400 mt-1">
-              Click "Quick Scan" to discover real local events from ALL sources with ScraperAPI
+              Set up Apify scraper first, then click "Process Apify Data" to discover real local events
             </p>
           </div>
         )}
@@ -737,7 +788,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.6 }}
+        transition={{ delay: 0.8 }}
         className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200 p-6"
       >
         <div className="flex items-center justify-between">
@@ -746,15 +797,15 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
               <Users className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900">Automated ScraperAPI Schedule</h3>
+              <h3 className="font-semibold text-gray-900">Automated Apify Pipeline Schedule</h3>
               <p className="text-sm text-gray-600">
                 {scheduleSettings.enabled ? (
                   <>
-                    Automatically scans ALL sources with ScraperAPI every {getDayName(scheduleSettings.day_of_week)} at {formatTime(scheduleSettings.hour)} ({scheduleSettings.timezone}).
+                    Apify scrapes ALL sources automatically, then our pipeline processes the data every {getDayName(scheduleSettings.day_of_week)} at {formatTime(scheduleSettings.hour)} ({scheduleSettings.timezone}).
                     When relevant events are found, research briefs are created (no automatic content generation).
                   </>
                 ) : (
-                  'Automatic scanning is currently disabled. Use manual scan or enable scheduling.'
+                  'Automatic processing is currently disabled. Use manual processing or enable scheduling.'
                 )}
               </p>
             </div>
@@ -768,89 +819,162 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
         </div>
       </motion.div>
 
-      {/* ScraperAPI Info Modal */}
-      {showScraperApiInfo && (
+      {/* Apify Setup Info Modal */}
+      {showApifySetupInfo && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-xl shadow-xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto"
           >
             <div className="flex items-center space-x-3 mb-6">
               <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                <Shield className="h-5 w-5 text-purple-600" />
+                <Workflow className="h-5 w-5 text-purple-600" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">ScraperAPI Integration</h3>
-                <p className="text-sm text-gray-600">Professional-grade web scraping solution</p>
+                <h3 className="text-lg font-semibold text-gray-900">Apify Pipeline Setup Guide</h3>
+                <p className="text-sm text-gray-600">Complete setup instructions for the professional Event Engine</p>
               </div>
             </div>
             
-            <div className="space-y-6">
-              <div>
-                <h4 className="font-medium text-gray-900 mb-3">Why ScraperAPI?</h4>
+            <div className="space-y-8">
+              {/* Step 1 */}
+              <div className="border-l-4 border-purple-500 pl-6">
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                  <span className="bg-purple-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm mr-3">1</span>
+                  Sign Up for Apify
+                </h4>
                 <div className="space-y-2 text-sm text-gray-700">
-                  <p>• <strong>Reliability:</strong> Handles websites that block direct requests</p>
-                  <p>• <strong>Headless Browsers:</strong> Executes JavaScript for dynamic content</p>
-                  <p>• <strong>Proxy Rotation:</strong> Prevents IP blocking and rate limiting</p>
-                  <p>• <strong>Automatic Retries:</strong> Ensures successful data retrieval</p>
-                  <p>• <strong>Global Infrastructure:</strong> Fast, reliable access to all sources</p>
+                  <p>• Visit <a href="https://apify.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">apify.com</a> and create a free account</p>
+                  <p>• The free plan includes 1,000 compute units per month (sufficient for daily scraping)</p>
+                  <p>• Navigate to the Apify Store and search for "Web Scraper"</p>
                 </div>
               </div>
-              
-              <div>
-                <h4 className="font-medium text-gray-900 mb-3">Setup Instructions</h4>
-                <div className="bg-gray-50 rounded-lg p-4 space-y-3 text-sm">
+
+              {/* Step 2 */}
+              <div className="border-l-4 border-blue-500 pl-6">
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                  <span className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm mr-3">2</span>
+                  Configure the Web Scraper
+                </h4>
+                <div className="space-y-3">
                   <div>
-                    <p className="font-medium text-gray-900">1. Sign up for ScraperAPI</p>
-                    <p className="text-gray-600">Visit <a href="https://www.scraperapi.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">scraperapi.com</a> and create a free account</p>
+                    <p className="font-medium text-gray-900">Start URLs (paste all 11 sources):</p>
+                    <div className="bg-gray-50 rounded-lg p-3 text-xs font-mono">
+                      <div>https://www.visitloudoun.org/event/rss/</div>
+                      <div>https://www.fxva.com/rss/</div>
+                      <div>https://www.virginia.org/feeds/events/</div>
+                      <div>https://www.visitpwc.com/events/rss</div>
+                      <div>https://visitfauquier.com/all-events/feed/</div>
+                      <div>https://northernvirginiamag.com/events/feed/</div>
+                      <div>https://www.discoverclarkecounty.com/events/feed/</div>
+                      <div>https://www.fxva.com/events/</div>
+                      <div>https://www.virginia.org/events/</div>
+                      <div>https://www.fauquiercounty.gov/government/calendar</div>
+                      <div>https://www.warrencountyva.gov/events</div>
+                    </div>
                   </div>
+                  
                   <div>
-                    <p className="font-medium text-gray-900">2. Get your API key</p>
-                    <p className="text-gray-600">Copy your API key from the ScraperAPI dashboard</p>
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900">3. Add to Supabase</p>
-                    <p className="text-gray-600">Store the key as <code className="bg-gray-200 px-1 rounded">SCRAPER_API_KEY</code> in your Supabase vault</p>
+                    <p className="font-medium text-gray-900">Page Function (copy this code):</p>
+                    <div className="bg-gray-50 rounded-lg p-3 text-xs font-mono">
+                      <pre>{`async function pageFunction(context) {
+    const { page, request } = context;
+    
+    // Get the page content
+    const content = await page.content();
+    
+    return {
+        source_url: request.url,
+        source_name: request.url.includes('visitloudoun') ? 'Visit Loudoun Events RSS' :
+                    request.url.includes('fxva.com/rss') ? 'FXVA Events RSS' :
+                    request.url.includes('virginia.org/feeds') ? 'Virginia Tourism Events RSS' :
+                    request.url.includes('visitpwc') ? 'Prince William County Events RSS' :
+                    request.url.includes('visitfauquier') ? 'Visit Fauquier Events RSS' :
+                    request.url.includes('northernvirginiamag') ? 'Northern Virginia Magazine Events RSS' :
+                    request.url.includes('discoverclarkecounty') ? 'Discover Clarke County Events RSS' :
+                    request.url.includes('fxva.com/events') ? 'FXVA Events HTML' :
+                    request.url.includes('virginia.org/events') ? 'Virginia Tourism Events HTML' :
+                    request.url.includes('fauquiercounty.gov') ? 'Fauquier County Government Calendar' :
+                    request.url.includes('warrencountyva.gov') ? 'Warren County Events' :
+                    request.url,
+        raw_content: content,
+        scrape_timestamp: new Date().toISOString()
+    };
+}`}</pre>
+                    </div>
                   </div>
                 </div>
               </div>
-              
-              <div>
-                <h4 className="font-medium text-gray-900 mb-3">Free Tier</h4>
-                <div className="bg-green-50 rounded-lg p-4 text-sm">
-                  <p className="text-green-800">
-                    <strong>1,000 free requests/month</strong> - Perfect for testing and small-scale use.
-                    Each Event Engine scan uses ~11 requests (one per source).
-                  </p>
+
+              {/* Step 3 */}
+              <div className="border-l-4 border-green-500 pl-6">
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                  <span className="bg-green-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm mr-3">3</span>
+                  Set Up Webhook Integration
+                </h4>
+                <div className="space-y-2 text-sm text-gray-700">
+                  <p>• In the scraper's "Integrations" tab, add a new "Webhook" integration</p>
+                  <p>• Set the webhook URL to: <code className="bg-gray-200 px-1 rounded">{import.meta.env.VITE_SUPABASE_URL}/functions/v1/ingest-raw-events</code></p>
+                  <p>• Set the HTTP method to "POST"</p>
+                  <p>• This will automatically send scraped data to your Event Engine</p>
                 </div>
               </div>
-              
-              <div>
-                <h4 className="font-medium text-gray-900 mb-3">Fallback Behavior</h4>
-                <div className="bg-amber-50 rounded-lg p-4 text-sm">
-                  <p className="text-amber-800">
-                    Without ScraperAPI, the system falls back to direct requests, which are less reliable.
-                    Many sources may fail due to blocking or security measures.
-                  </p>
+
+              {/* Step 4 */}
+              <div className="border-l-4 border-amber-500 pl-6">
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                  <span className="bg-amber-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm mr-3">4</span>
+                  Schedule Regular Runs
+                </h4>
+                <div className="space-y-2 text-sm text-gray-700">
+                  <p>• In the scraper settings, set up a schedule (e.g., daily at 6 AM)</p>
+                  <p>• Recommended: Run once per day to capture new events</p>
+                  <p>• The scraper will automatically feed data to your Event Engine</p>
+                </div>
+              </div>
+
+              {/* Step 5 */}
+              <div className="border-l-4 border-indigo-500 pl-6">
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                  <span className="bg-indigo-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm mr-3">5</span>
+                  Test and Monitor
+                </h4>
+                <div className="space-y-2 text-sm text-gray-700">
+                  <p>• Run the scraper manually first to test the setup</p>
+                  <p>• Check that data appears in your Event Engine pipeline status</p>
+                  <p>• Use "Process Apify Data" button to analyze the scraped content</p>
+                  <p>• Monitor the Apify dashboard for scraping success/failures</p>
+                </div>
+              </div>
+
+              {/* Benefits */}
+              <div className="bg-green-50 rounded-lg p-4">
+                <h4 className="font-medium text-gray-900 mb-3">Why This Architecture Works</h4>
+                <div className="space-y-2 text-sm text-gray-700">
+                  <p>• <strong>Reliability:</strong> Apify handles all the complex web scraping professionally</p>
+                  <p>• <strong>Separation of Concerns:</strong> Data acquisition is separate from AI processing</p>
+                  <p>• <strong>Scalability:</strong> Can easily add more sources or increase frequency</p>
+                  <p>• <strong>Debugging:</strong> Clear separation makes troubleshooting much easier</p>
+                  <p>• <strong>Professional Grade:</strong> Industry-standard approach used by data companies</p>
                 </div>
               </div>
             </div>
             
-            <div className="flex space-x-3 mt-6">
+            <div className="flex space-x-3 mt-8">
               <a
-                href="https://www.scraperapi.com"
+                href="https://apify.com"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-center"
               >
-                Sign Up for ScraperAPI
+                Sign Up for Apify
               </a>
               <button
-                onClick={() => setShowScraperApiInfo(false)}
+                onClick={() => setShowApifySetupInfo(false)}
                 className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
               >
-                Close
+                Close Guide
               </button>
             </div>
           </motion.div>
@@ -870,8 +994,8 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
                 <CalendarDays className="h-5 w-5 text-blue-600" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Custom Date Range Scan</h3>
-                <p className="text-sm text-gray-600">Scan for events in a specific date range</p>
+                <h3 className="text-lg font-semibold text-gray-900">Custom Date Range Processing</h3>
+                <p className="text-sm text-gray-600">Process Apify data for events in a specific date range</p>
               </div>
             </div>
             
@@ -922,8 +1046,8 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
                 disabled={scanning}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
               >
-                <Zap className="h-4 w-4 mr-2" />
-                {scanning ? 'Scanning...' : 'Scan Range'}
+                <Database className="h-4 w-4 mr-2" />
+                {scanning ? 'Processing...' : 'Process Range'}
               </button>
             </div>
           </motion.div>
@@ -944,14 +1068,14 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Schedule Settings</h3>
-                <p className="text-sm text-gray-600">Configure when the Event Engine runs automatically</p>
+                <p className="text-sm text-gray-600">Configure when the Event Engine processes Apify data automatically</p>
               </div>
             </div>
             
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium text-gray-700">
-                  Enable Automatic Scanning
+                  Enable Automatic Processing
                 </label>
                 <input
                   type="checkbox"
