@@ -224,24 +224,79 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Initialize Supabase client
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    // Check for required environment variables
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    // Fetch complete Brand Voice Guide from winery_profiles
-    const { data: wineryProfile, error: profileError } = await supabase
-      .from('winery_profiles')
-      .select('*')
-      .eq('id', winery_id)
-      .single();
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('Missing required environment variables:', {
+        SUPABASE_URL: !!supabaseUrl,
+        SUPABASE_SERVICE_ROLE_KEY: !!supabaseServiceKey
+      });
+      
+      return new Response(
+        JSON.stringify({ 
+          error: "Edge Function configuration error",
+          details: "Missing required environment variables. Please configure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in your Supabase project's Edge Function secrets.",
+          configuration_help: "Go to your Supabase dashboard > Edge Functions > Secrets to set these values."
+        }),
+        {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders,
+          }
+        }
+      );
+    }
 
-    if (profileError || !wineryProfile) {
+    // Initialize Supabase client with error handling
+    let supabase;
+    try {
+      supabase = createClient(supabaseUrl, supabaseServiceKey);
+    } catch (clientError) {
+      console.error('Failed to create Supabase client:', clientError);
+      return new Response(
+        JSON.stringify({ 
+          error: "Database connection error",
+          details: "Failed to initialize database connection. Please check your Supabase configuration.",
+          technical_details: clientError instanceof Error ? clientError.message : 'Unknown client error'
+        }),
+        {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders,
+          }
+        }
+      );
+    }
+
+    // Fetch complete Brand Voice Guide from winery_profiles with error handling
+    let wineryProfile;
+    try {
+      const { data: profileData, error: profileError } = await supabase
+        .from('winery_profiles')
+        .select('*')
+        .eq('id', winery_id)
+        .single();
+
+      if (profileError) {
+        throw new Error(`Database query failed: ${profileError.message}`);
+      }
+
+      if (!profileData) {
+        throw new Error('Winery profile not found');
+      }
+
+      wineryProfile = profileData;
+    } catch (dbError) {
+      console.error('Database error fetching winery profile:', dbError);
       return new Response(
         JSON.stringify({ 
           error: "Failed to fetch winery profile",
-          details: profileError?.message || 'Profile not found'
+          details: dbError instanceof Error ? dbError.message : 'Unknown database error',
+          winery_id: winery_id
         }),
         {
           status: 404,
@@ -325,27 +380,58 @@ The ${wineryProfile.winery_name} Team</p>`;
 ${content_request.call_to_action ? `<p><strong>${content_request.call_to_action}</strong></p>` : ''}`;
       }
 
-      // Save the generated content to database
-      const { data: contentData, error: contentError } = await supabase
-        .from('content_calendar')
-        .insert([{
-          winery_id: winery_id,
-          title: generatedTitle,
-          content: generatedContent,
-          content_type: content_request.content_type,
-          status: 'draft',
-          research_brief_id: research_brief_id,
-          created_by: null // Will be set by RLS
-        }])
-        .select()
-        .single();
+      // Save the generated content to database with error handling
+      try {
+        const { data: contentData, error: contentError } = await supabase
+          .from('content_calendar')
+          .insert([{
+            winery_id: winery_id,
+            title: generatedTitle,
+            content: generatedContent,
+            content_type: content_request.content_type,
+            status: 'draft',
+            research_brief_id: research_brief_id,
+            created_by: null // Will be set by RLS
+          }])
+          .select()
+          .single();
 
-      if (contentError) {
-        console.error('Error saving generated content:', contentError);
+        if (contentError) {
+          throw new Error(`Failed to save content: ${contentError.message}`);
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              content: contentData,
+              brand_voice_applied: {
+                personality: wineryProfile.brand_personality_summary || 'Not specified',
+                tone_attributes: wineryProfile.core_tone_attributes || 'Not specified',
+                messaging_style: wineryProfile.messaging_style || 'Not specified',
+                vocabulary_used: wineryProfile.vocabulary_to_use || 'Not specified',
+                vocabulary_avoided: wineryProfile.vocabulary_to_avoid || 'Not specified',
+                writing_guidelines: wineryProfile.ai_writing_guidelines || 'Not specified'
+              },
+              content_request: content_request,
+              word_count: generatedContent.replace(/<[^>]*>/g, '').split(' ').length,
+              generation_method: 'demo_template'
+            },
+            message: "Content generated successfully using brand voice guide and content request"
+          }),
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders,
+            }
+          }
+        );
+      } catch (saveError) {
+        console.error('Error saving generated content:', saveError);
         return new Response(
           JSON.stringify({ 
             error: "Failed to save generated content",
-            details: contentError.message
+            details: saveError instanceof Error ? saveError.message : 'Unknown save error'
           }),
           {
             status: 500,
@@ -356,33 +442,6 @@ ${content_request.call_to_action ? `<p><strong>${content_request.call_to_action}
           }
         );
       }
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          data: {
-            content: contentData,
-            brand_voice_applied: {
-              personality: wineryProfile.brand_personality_summary || 'Not specified',
-              tone_attributes: wineryProfile.core_tone_attributes || 'Not specified',
-              messaging_style: wineryProfile.messaging_style || 'Not specified',
-              vocabulary_used: wineryProfile.vocabulary_to_use || 'Not specified',
-              vocabulary_avoided: wineryProfile.vocabulary_to_avoid || 'Not specified',
-              writing_guidelines: wineryProfile.ai_writing_guidelines || 'Not specified'
-            },
-            content_request: content_request,
-            word_count: generatedContent.replace(/<[^>]*>/g, '').split(' ').length,
-            generation_method: 'demo_template'
-          },
-          message: "Content generated successfully using brand voice guide and content request"
-        }),
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders,
-          }
-        }
-      );
     }
 
     // Call OpenAI API with supercharged prompt
@@ -427,27 +486,59 @@ ${content_request.call_to_action ? `<p><strong>${content_request.call_to_action}
       const generatedTitle = lines[0]?.replace(/^#+\s*/, '') || content_request.primary_topic;
       const generatedContent = generatedText;
 
-      // Save the generated content to database
-      const { data: contentData, error: contentError } = await supabase
-        .from('content_calendar')
-        .insert([{
-          winery_id: winery_id,
-          title: generatedTitle,
-          content: generatedContent,
-          content_type: content_request.content_type,
-          status: 'draft',
-          research_brief_id: research_brief_id,
-          created_by: null // Will be set by RLS
-        }])
-        .select()
-        .single();
+      // Save the generated content to database with error handling
+      try {
+        const { data: contentData, error: contentError } = await supabase
+          .from('content_calendar')
+          .insert([{
+            winery_id: winery_id,
+            title: generatedTitle,
+            content: generatedContent,
+            content_type: content_request.content_type,
+            status: 'draft',
+            research_brief_id: research_brief_id,
+            created_by: null // Will be set by RLS
+          }])
+          .select()
+          .single();
 
-      if (contentError) {
-        console.error('Error saving generated content:', contentError);
+        if (contentError) {
+          throw new Error(`Failed to save content: ${contentError.message}`);
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              content: contentData,
+              brand_voice_applied: {
+                personality: wineryProfile.brand_personality_summary || 'Not specified',
+                tone_attributes: wineryProfile.core_tone_attributes || 'Not specified',
+                messaging_style: wineryProfile.messaging_style || 'Not specified',
+                vocabulary_used: wineryProfile.vocabulary_to_use || 'Not specified',
+                vocabulary_avoided: wineryProfile.vocabulary_to_avoid || 'Not specified',
+                writing_guidelines: wineryProfile.ai_writing_guidelines || 'Not specified'
+              },
+              content_request: content_request,
+              word_count: generatedContent.replace(/<[^>]*>/g, '').split(' ').length,
+              generation_method: 'openai_gpt4',
+              tokens_used: openaiData.usage?.total_tokens || 0
+            },
+            message: "Content generated successfully using OpenAI with supercharged brand voice prompt"
+          }),
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders,
+            }
+          }
+        );
+      } catch (saveError) {
+        console.error('Error saving OpenAI generated content:', saveError);
         return new Response(
           JSON.stringify({ 
             error: "Failed to save generated content",
-            details: contentError.message
+            details: saveError instanceof Error ? saveError.message : 'Unknown save error'
           }),
           {
             status: 500,
@@ -458,34 +549,6 @@ ${content_request.call_to_action ? `<p><strong>${content_request.call_to_action}
           }
         );
       }
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          data: {
-            content: contentData,
-            brand_voice_applied: {
-              personality: wineryProfile.brand_personality_summary || 'Not specified',
-              tone_attributes: wineryProfile.core_tone_attributes || 'Not specified',
-              messaging_style: wineryProfile.messaging_style || 'Not specified',
-              vocabulary_used: wineryProfile.vocabulary_to_use || 'Not specified',
-              vocabulary_avoided: wineryProfile.vocabulary_to_avoid || 'Not specified',
-              writing_guidelines: wineryProfile.ai_writing_guidelines || 'Not specified'
-            },
-            content_request: content_request,
-            word_count: generatedContent.replace(/<[^>]*>/g, '').split(' ').length,
-            generation_method: 'openai_gpt4',
-            tokens_used: openaiData.usage?.total_tokens || 0
-          },
-          message: "Content generated successfully using OpenAI with supercharged brand voice prompt"
-        }),
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders,
-          }
-        }
-      );
 
     } catch (openaiError) {
       console.error('OpenAI API error:', openaiError);
