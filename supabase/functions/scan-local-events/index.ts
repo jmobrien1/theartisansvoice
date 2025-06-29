@@ -1,24 +1,23 @@
 /*
-  # Hyper-Local Event Engine - Real Data Implementation
+  # Real Event Engine - Production Implementation
 
   1. Purpose
-    - Actually scrapes real local event websites for opportunities
-    - Uses AI to identify wine/tourism-related events from real data
-    - Proactively generates content for all wineries based on findings
-    - Transforms the app from reactive to proactive with REAL data
+    - Scrapes REAL local event websites for opportunities
+    - Uses AI to identify wine/tourism-related events from actual data
+    - NO MORE DEMO DATA - only real scraped content
+    - Configurable scheduling system
 
   2. Functionality
-    - Scheduled to run weekly (every Monday at 9 AM)
-    - Scrapes multiple real local event websites
-    - AI analyzes scraped content for relevant events
+    - Scrapes curated high-value event websites
+    - AI analyzes real scraped content for relevant events
     - Creates research briefs for discovered events
     - Triggers content generation for all wineries
+    - Supports both scheduled and manual execution
 
   3. Real Data Sources
-    - Uses actual event calendar websites
-    - Implements proper web scraping techniques
-    - Handles different website structures
-    - Respects robots.txt and rate limiting
+    - Curated list of reliable event websites
+    - Proper web scraping with error handling
+    - Respects rate limiting and timeouts
 */
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
@@ -67,14 +66,6 @@ const EVENT_SOURCES = [
     description: 'Official tourism site for local breweries, parks, and historic sites'
   },
   {
-    url: 'https://www.fauquiercounty.gov/government/calendar',
-    name: 'Fauquier County Calendar',
-    region: 'Fauquier County, VA',
-    type: 'government',
-    priority: 'medium',
-    description: 'Official government calendar with community events, farmers markets, county fairs'
-  },
-  {
     url: 'https://visitfauquier.com/all-events/',
     name: 'Visit Fauquier',
     region: 'Fauquier County, VA',
@@ -89,14 +80,6 @@ const EVENT_SOURCES = [
     type: 'tourism',
     priority: 'medium',
     description: 'Main events hub focusing on outdoor activities, history, and local festivals'
-  },
-  {
-    url: 'https://www.warrencountyva.gov/events',
-    name: 'Warren County Events',
-    region: 'Warren County, VA',
-    type: 'government',
-    priority: 'medium',
-    description: 'Official county calendar including Front Royal area events'
   },
   
   // Category 3: Local News & Lifestyle Sources
@@ -146,15 +129,15 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    console.log('🔍 Starting REAL hyper-local event scan with CURATED sources...');
+    console.log('🔍 Starting REAL event scan with curated sources...');
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // --- Step 1: Scrape Real Event Websites (Prioritized Order) ---
-    console.log('📡 Scraping CURATED local event websites...');
+    // --- Step 1: Scrape Real Event Websites ---
+    console.log('📡 Scraping curated local event websites...');
     
     // Sort sources by priority (high first)
     const prioritizedSources = EVENT_SOURCES.sort((a, b) => {
@@ -165,7 +148,7 @@ Deno.serve(async (req: Request) => {
     const scrapedContents: ScrapedContent[] = await Promise.all(
       prioritizedSources.map(async (source) => {
         try {
-          console.log(`Fetching: ${source.name} (${source.priority} priority) - ${source.description}`);
+          console.log(`Fetching: ${source.name} (${source.priority} priority)`);
           
           const response = await fetch(source.url, {
             headers: {
@@ -181,7 +164,7 @@ Deno.serve(async (req: Request) => {
               'Sec-Fetch-Site': 'none',
               'Cache-Control': 'max-age=0'
             },
-            signal: AbortSignal.timeout(20000) // 20 second timeout for better reliability
+            signal: AbortSignal.timeout(15000) // 15 second timeout
           });
           
           if (!response.ok) {
@@ -199,10 +182,10 @@ Deno.serve(async (req: Request) => {
           
           const text = await response.text();
           
-          // Extract meaningful content from HTML with enhanced filtering
+          // Extract meaningful content from HTML
           const cleanedText = extractEventContent(text, source.type);
           
-          console.log(`✅ Successfully scraped ${source.name} (${cleanedText.length} characters of event content)`);
+          console.log(`✅ Successfully scraped ${source.name} (${cleanedText.length} characters)`);
           return { 
             url: source.url, 
             name: source.name,
@@ -227,18 +210,30 @@ Deno.serve(async (req: Request) => {
       })
     );
 
-    // Filter successful scrapes and prioritize high-value sources
+    // Filter successful scrapes
     const successfulScrapes = scrapedContents.filter(content => content.success && content.text.length > 200);
     const highPriorityScrapes = successfulScrapes.filter(content => content.priority === 'high');
     
     console.log(`📊 Scraping results: ${successfulScrapes.length}/${EVENT_SOURCES.length} sources successful (${highPriorityScrapes.length} high-priority)`);
     
     if (successfulScrapes.length === 0) {
-      console.warn('⚠️ No successful scrapes, falling back to demo events');
-      return await generateDemoEvents(supabase, 'No real event data could be scraped from any source');
+      console.error('❌ No successful scrapes - all event sources failed');
+      return new Response(JSON.stringify({
+        success: false,
+        error: "No event data could be scraped from any source",
+        scraped_sources: 0,
+        total_sources: EVENT_SOURCES.length,
+        scrape_errors: scrapedContents.map(s => ({ 
+          name: s.name, 
+          error: s.error || 'Unknown error' 
+        }))
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
-    // Prioritize high-value sources in the combined text
+    // Combine scraped content, prioritizing high-value sources
     const combinedText = successfulScrapes
       .sort((a, b) => {
         const priorityOrder = { 'high': 0, 'medium': 1, 'low': 2 };
@@ -248,16 +243,30 @@ Deno.serve(async (req: Request) => {
         `=== ${content.name} (${content.region}) - ${content.priority.toUpperCase()} PRIORITY ===\nSource: ${content.url}\n${content.text}`
       ).join('\n\n---\n\n');
 
-    // --- Step 2: Enhanced AI Analysis for Wine/Tourism Events ---
-    console.log('🤖 Analyzing scraped content with ENHANCED AI for wine/tourism events...');
+    // --- Step 2: AI Analysis for Wine/Tourism Events ---
+    console.log('🤖 Analyzing scraped content with AI for wine/tourism events...');
     
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openaiApiKey) {
-      console.warn('⚠️ OpenAI API key not found, using demo events with real scrape data');
-      return await generateDemoEvents(supabase, `Real data scraped from ${successfulScrapes.length} sources but no AI analysis available`);
+      console.error('❌ OpenAI API key not found - cannot analyze events');
+      return new Response(JSON.stringify({
+        success: false,
+        error: "OpenAI API key not configured - cannot analyze scraped event data",
+        scraped_sources: successfulScrapes.length,
+        total_sources: EVENT_SOURCES.length,
+        scrape_details: successfulScrapes.map(s => ({ 
+          name: s.name, 
+          region: s.region, 
+          priority: s.priority,
+          content_length: s.text.length 
+        }))
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
-    const enhancedAnalysisPrompt = `You are an expert event analyst specializing in wine tourism, craft beverage marketing, and local hospitality opportunities in the Virginia/DC metro region. Analyze the following REAL scraped content from curated local event websites and extract upcoming events that would be highly relevant for wineries to create marketing content about.
+    const analysisPrompt = `You are an expert event analyst specializing in wine tourism, craft beverage marketing, and local hospitality opportunities in the Virginia/DC metro region. Analyze the following REAL scraped content from curated local event websites and extract upcoming events that would be highly relevant for wineries to create marketing content about.
 
 PRIORITY EVENT TYPES (focus on these first):
 🍷 WINE & BEVERAGE EVENTS:
@@ -285,16 +294,9 @@ EXTRACTION CRITERIA:
 ✅ MUST BE: In Virginia, DC, or Maryland region
 ✅ FOCUS ON: Events that attract wine enthusiasts, tourists, or affluent locals
 
-ENHANCED ANALYSIS INSTRUCTIONS:
-- Look for EXACT event names, dates, and venues from the scraped content
-- Pay special attention to HIGH PRIORITY sources (marked in the content)
-- Extract weekend events (Friday-Sunday) as they're most relevant for wineries
-- Look for recurring events (monthly markets, weekly concerts)
-- Identify events at venues that typically allow wine (parks, galleries, etc.)
-
 For each relevant event, provide:
-- event_name: The EXACT name from the website (don't modify it)
-- event_date: Specific date in YYYY-MM-DD format (or date range if multi-day)
+- event_name: The EXACT name from the website
+- event_date: Specific date in YYYY-MM-DD format
 - event_location: Exact venue name and city from the source
 - event_summary: 1-2 sentences explaining the event and why it's perfect for winery marketing
 - relevance_score: Number from 1-10 (8+ for wine events, 6+ for tourism events, 5+ for community events)
@@ -309,7 +311,7 @@ QUALITY STANDARDS:
 
 Today's date is ${new Date().toLocaleDateString()}.
 
-Respond ONLY with a valid JSON object containing a single key "events", which is an array of event objects. If no relevant events are found, return an empty array.
+Respond ONLY with a valid JSON object containing a single key "events", which is an array of event objects. If no relevant events are found, return {"events":[]}.
 
 SCRAPED CONTENT TO ANALYZE:
 ${combinedText}`;
@@ -325,11 +327,11 @@ ${combinedText}`;
           model: 'gpt-4',
           response_format: { type: "json_object" },
           messages: [
-            { role: 'system', content: enhancedAnalysisPrompt },
-            { role: 'user', content: 'Please analyze the scraped event data and extract relevant wine/tourism events using the enhanced criteria.' }
+            { role: 'system', content: analysisPrompt },
+            { role: 'user', content: 'Please analyze the scraped event data and extract relevant wine/tourism events.' }
           ],
           max_tokens: 4000,
-          temperature: 0.1, // Very low temperature for accurate extraction
+          temperature: 0.1,
         }),
       });
 
@@ -342,13 +344,14 @@ ${combinedText}`;
       const result = JSON.parse(openaiData.choices[0]?.message?.content || '{"events":[]}');
       const events: EventBrief[] = result.events || [];
 
-      console.log(`🎯 AI identified ${events.length} relevant events from CURATED real data`);
+      console.log(`🎯 AI identified ${events.length} relevant events from real data`);
 
       if (events.length === 0) {
-        console.log('ℹ️ No relevant events found in curated scraped content');
+        console.log('ℹ️ No relevant events found in scraped content');
         return new Response(JSON.stringify({ 
           success: true,
-          message: "No relevant events found in current curated scraped content.",
+          message: "No relevant events found in current scraped content",
+          events_found: 0,
           scraped_sources: successfulScrapes.length,
           high_priority_sources: highPriorityScrapes.length,
           total_sources: EVENT_SOURCES.length,
@@ -364,7 +367,7 @@ ${combinedText}`;
       }
 
       // --- Step 3: Create Research Briefs for Real Discovered Events ---
-      console.log('📝 Creating research briefs for REAL discovered events...');
+      console.log('📝 Creating research briefs for real discovered events...');
       
       const { data: wineries, error: wineriesError } = await supabase
         .from('winery_profiles')
@@ -378,7 +381,7 @@ ${combinedText}`;
         console.log('ℹ️ No wineries found to generate content for');
         return new Response(JSON.stringify({ 
           success: true,
-          message: "Real events found but no wineries to generate content for.",
+          message: "Real events found but no wineries to generate content for",
           events_found: events.length,
           events: events.map(e => ({ 
             name: e.event_name, 
@@ -391,7 +394,7 @@ ${combinedText}`;
         });
       }
 
-      console.log(`🎯 Generating content for ${wineries.length} wineries across ${events.length} REAL events`);
+      console.log(`🎯 Generating content for ${wineries.length} wineries across ${events.length} real events`);
 
       let contentGeneratedCount = 0;
       let briefsCreatedCount = 0;
@@ -403,7 +406,7 @@ ${combinedText}`;
             // Create a research brief specific to this winery and real event
             const wineryBrief = {
               winery_id: winery.id,
-              suggested_theme: `REAL Local Event: ${event.event_name}`,
+              suggested_theme: `Local Event: ${event.event_name}`,
               key_points: [
                 `Event: ${event.event_name}`,
                 `Date: ${event.event_date}`,
@@ -412,12 +415,12 @@ ${combinedText}`;
                 `Relevance Score: ${event.relevance_score}/10`,
                 `Source: ${event.source_url}`,
                 `Region: ${event.source_region}`,
-                `Discovered via: Curated Event Engine`
+                `Discovered: ${new Date().toLocaleDateString()}`
               ],
               local_event_name: event.event_name,
               local_event_date: event.event_date ? new Date(event.event_date).toISOString() : null,
               local_event_location: event.event_location,
-              seasonal_context: `REAL event discovered by Event Engine from ${event.source_region}. ${event.event_summary} This is an actual opportunity for ${winery.winery_name} to engage with the local wine community.`
+              seasonal_context: `Real event discovered by Event Engine from ${event.source_region}. ${event.event_summary} This is an actual opportunity for ${winery.winery_name} to engage with the local wine community.`
             };
 
             const { data: newBrief, error: briefError } = await supabase
@@ -433,15 +436,15 @@ ${combinedText}`;
 
             briefsCreatedCount++;
 
-            // Generate content based on this REAL event for this specific winery
+            // Generate content based on this real event
             const contentRequest = {
               content_type: 'social_media',
               primary_topic: `Local event opportunity: ${event.event_name}`,
-              key_talking_points: `${event.event_summary} Event details: ${event.event_date} at ${event.event_location}. This is a REAL opportunity happening in ${event.source_region} for ${winery.winery_name} to connect with the local wine community and potential customers.`,
+              key_talking_points: `${event.event_summary} Event details: ${event.event_date} at ${event.event_location}. This is a real opportunity happening in ${event.source_region} for ${winery.winery_name} to connect with the local wine community.`,
               call_to_action: 'Join us and discover exceptional wines at this exciting local event!'
             };
 
-            // Call the generate-content function with research_brief_id
+            // Call the generate-content function
             const { error: contentError } = await supabase.functions.invoke('generate-content', {
               body: {
                 winery_id: winery.id,
@@ -457,8 +460,8 @@ ${combinedText}`;
               console.log(`✅ Generated content for ${winery.winery_name} - ${event.event_name}`);
             }
 
-            // Add small delay to avoid overwhelming the system
-            await new Promise(resolve => setTimeout(resolve, 300));
+            // Small delay to avoid overwhelming the system
+            await new Promise(resolve => setTimeout(resolve, 200));
 
           } catch (error) {
             console.error(`Error processing ${event.event_name} for ${winery.winery_name}:`, error);
@@ -466,13 +469,13 @@ ${combinedText}`;
         }
       }
 
-      console.log(`🎉 REAL Event Engine completed successfully with CURATED sources!`);
-      console.log(`📊 Results: ${briefsCreatedCount} briefs created, ${contentGeneratedCount} content pieces generated from REAL events`);
+      console.log(`🎉 Real Event Engine completed successfully!`);
+      console.log(`📊 Results: ${briefsCreatedCount} briefs created, ${contentGeneratedCount} content pieces generated`);
 
       return new Response(JSON.stringify({
         success: true,
-        message: `Successfully processed ${events.length} REAL events from curated sources for ${wineries.length} wineries`,
-        data_source: 'curated_real_events',
+        message: `Successfully processed ${events.length} real events for ${wineries.length} wineries`,
+        data_source: 'real_events',
         events_processed: events.length,
         wineries_processed: wineries.length,
         briefs_created: briefsCreatedCount,
@@ -499,7 +502,15 @@ ${combinedText}`;
 
     } catch (openaiError) {
       console.error('OpenAI analysis failed:', openaiError);
-      return await generateDemoEvents(supabase, `Real data scraped from curated sources but AI analysis failed: ${openaiError.message}`);
+      return new Response(JSON.stringify({
+        success: false,
+        error: `AI analysis failed: ${openaiError.message}`,
+        scraped_sources: successfulScrapes.length,
+        total_sources: EVENT_SOURCES.length
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
   } catch (error) {
@@ -517,7 +528,7 @@ ${combinedText}`;
   }
 });
 
-// Enhanced helper function to extract meaningful event content from HTML
+// Helper function to extract meaningful event content from HTML
 function extractEventContent(html: string, sourceType: string): string {
   try {
     // Remove script and style tags
@@ -543,177 +554,32 @@ function extractEventContent(html: string, sourceType: string): string {
     cleaned = cleaned.replace(/\s+/g, ' ');
     cleaned = cleaned.trim();
     
-    // Enhanced event-related keywords based on source type
-    const baseKeywords = [
+    // Event-related keywords for filtering
+    const eventKeywords = [
       'event', 'festival', 'tasting', 'wine', 'vineyard', 'celebration',
-      'concert', 'market', 'tour', 'dinner', 'pairing', 'harvest'
-    ];
-    
-    const dateKeywords = [
+      'concert', 'market', 'tour', 'dinner', 'pairing', 'harvest',
       'january', 'february', 'march', 'april', 'may', 'june',
       'july', 'august', 'september', 'october', 'november', 'december',
-      '2024', '2025', 'weekend', 'saturday', 'sunday', 'friday'
+      '2024', '2025', 'weekend', 'saturday', 'sunday', 'friday',
+      'winery', 'brewery', 'distillery', 'cellar', 'craft', 'local'
     ];
-    
-    const wineKeywords = [
-      'winery', 'brewery', 'distillery', 'vineyard', 'cellar', 'barrel',
-      'sommelier', 'craft', 'artisan', 'local', 'farm', 'organic'
-    ];
-    
-    const tourismKeywords = [
-      'visit', 'tour', 'experience', 'attraction', 'destination',
-      'historic', 'heritage', 'cultural', 'outdoor', 'scenic'
-    ];
-    
-    let eventKeywords = [...baseKeywords, ...dateKeywords];
-    
-    // Add specific keywords based on source type
-    if (sourceType === 'wine') {
-      eventKeywords = [...eventKeywords, ...wineKeywords];
-    } else if (sourceType === 'tourism') {
-      eventKeywords = [...eventKeywords, ...tourismKeywords];
-    }
     
     const sentences = cleaned.split(/[.!?]+/);
     const relevantSentences = sentences.filter(sentence => {
       const lowerSentence = sentence.toLowerCase();
       const keywordCount = eventKeywords.filter(keyword => lowerSentence.includes(keyword)).length;
-      return keywordCount >= 1 && sentence.length > 20; // Must have at least 1 keyword and be substantial
+      return keywordCount >= 1 && sentence.length > 20;
     });
     
-    // If we found relevant sentences, use those; otherwise use first part of cleaned text
+    // Use relevant sentences if found, otherwise use first part of cleaned text
     if (relevantSentences.length > 0) {
-      return relevantSentences.slice(0, 100).join('. '); // Limit to 100 relevant sentences
+      return relevantSentences.slice(0, 100).join('. ');
     } else {
-      return cleaned.substring(0, 8000); // Fallback to first 8000 characters
+      return cleaned.substring(0, 8000);
     }
     
   } catch (error) {
     console.error('Error extracting event content:', error);
-    return html.substring(0, 2000); // Fallback to raw HTML snippet
+    return html.substring(0, 2000);
   }
-}
-
-// Demo event generation for when scraping/AI fails
-async function generateDemoEvents(supabase: any, reason: string = 'Demo mode') {
-  console.log(`🎭 Generating demo events: ${reason}`);
-  
-  const demoEvents = [
-    {
-      event_name: "Loudoun Wine & Harvest Festival",
-      event_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-      event_location: "Leesburg, VA",
-      event_summary: "Annual celebration of harvest season with wine tastings from 20+ local wineries, live music, and farm-to-table food vendors - perfect opportunity for wineries to showcase seasonal offerings.",
-      relevance_score: 9,
-      source_url: "demo",
-      source_region: "Loudoun County, VA"
-    },
-    {
-      event_name: "Northern Virginia Food & Wine Festival",
-      event_date: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000).toISOString(),
-      event_location: "Reston Town Center, VA",
-      event_summary: "Premium food and wine festival featuring local restaurants and Virginia wineries - excellent networking opportunity for winery partnerships and customer acquisition.",
-      relevance_score: 8,
-      source_url: "demo",
-      source_region: "Fairfax County, VA"
-    },
-    {
-      event_name: "Holiday Wine & Artisan Market",
-      event_date: new Date(Date.now() + 35 * 24 * 60 * 60 * 1000).toISOString(),
-      event_location: "Old Town Alexandria, VA",
-      event_summary: "Holiday shopping event featuring local artisans, wine makers, and craft vendors - ideal for promoting wine gifts, holiday packages, and building brand awareness.",
-      relevance_score: 7,
-      source_url: "demo",
-      source_region: "Alexandria, VA"
-    }
-  ];
-
-  const { data: wineries } = await supabase
-    .from('winery_profiles')
-    .select('id, winery_name');
-
-  if (!wineries || wineries.length === 0) {
-    return new Response(JSON.stringify({ 
-      success: true,
-      message: `${reason}: No wineries found to generate content for.`,
-      data_source: 'demo_events',
-      events_found: demoEvents.length
-    }), { 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-  }
-
-  let contentGeneratedCount = 0;
-  let briefsCreatedCount = 0;
-
-  for (const event of demoEvents) {
-    for (const winery of wineries) {
-      try {
-        // Create research brief
-        const { data: newBrief, error: briefError } = await supabase
-          .from('research_briefs')
-          .insert([{
-            winery_id: winery.id,
-            suggested_theme: `Demo Event: ${event.event_name}`,
-            key_points: [
-              `Event: ${event.event_name}`,
-              `Date: ${event.event_date}`,
-              `Location: ${event.event_location}`,
-              `Summary: ${event.event_summary}`,
-              `Relevance Score: ${event.relevance_score}/10`,
-              `Source: Demo Data (Curated Event Engine)`
-            ],
-            local_event_name: event.event_name,
-            local_event_date: event.event_date,
-            local_event_location: event.event_location,
-            seasonal_context: `Demo event for testing curated Event Engine. ${event.event_summary}`
-          }])
-          .select()
-          .single();
-
-        if (!briefError) {
-          briefsCreatedCount++;
-
-          // Generate content with research_brief_id
-          const { error: contentError } = await supabase.functions.invoke('generate-content', {
-            body: {
-              winery_id: winery.id,
-              content_request: {
-                content_type: 'social_media',
-                primary_topic: `Demo event: ${event.event_name}`,
-                key_talking_points: `${event.event_summary} Event details: ${new Date(event.event_date).toLocaleDateString()} at ${event.event_location}.`,
-                call_to_action: 'Join us and discover exceptional wines!'
-              },
-              research_brief_id: newBrief.id
-            }
-          });
-
-          if (!contentError) {
-            contentGeneratedCount++;
-          }
-        }
-      } catch (error) {
-        console.error(`Demo error for ${winery.winery_name}:`, error);
-      }
-    }
-  }
-
-  return new Response(JSON.stringify({
-    success: true,
-    message: `${reason}: Processed ${demoEvents.length} demo events for ${wineries.length} wineries`,
-    data_source: 'demo_events',
-    events_processed: demoEvents.length,
-    wineries_processed: wineries.length,
-    briefs_created: briefsCreatedCount,
-    content_generated: contentGeneratedCount,
-    events: demoEvents.map(e => ({ 
-      name: e.event_name, 
-      date: e.event_date, 
-      location: e.event_location,
-      relevance: e.relevance_score,
-      source: 'Demo'
-    }))
-  }), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-  });
 }
