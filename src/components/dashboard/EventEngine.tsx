@@ -20,7 +20,10 @@ import {
   Settings,
   Save,
   ExternalLink,
-  CalendarDays
+  CalendarDays,
+  Shield,
+  Server,
+  Cpu
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
@@ -63,6 +66,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
   const [deletingEvent, setDeletingEvent] = useState<ProactiveEvent | null>(null);
   const [showScheduleSettings, setShowScheduleSettings] = useState(false);
   const [showDateRangeModal, setShowDateRangeModal] = useState(false);
+  const [showScraperApiInfo, setShowScraperApiInfo] = useState(false);
   const [scheduleSettings, setScheduleSettings] = useState<ScheduleSettings>({
     enabled: true,
     day_of_week: 1, // Monday
@@ -222,7 +226,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
     setScanning(true);
     
     try {
-      console.log('Triggering manual scan with date range:', customDateRange || dateRange);
+      console.log('Triggering ScraperAPI-powered scan with date range:', customDateRange || dateRange);
       
       const requestBody = { 
         manual_trigger: true,
@@ -246,25 +250,35 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
         throw new Error(result.error || `HTTP error! status: ${response.status}`);
       }
 
-      console.log('Scan result:', result);
+      console.log('ScraperAPI scan result:', result);
 
       if (result.success) {
         const startDate = new Date(result.date_range?.start || dateRange.start_date);
         const endDate = new Date(result.date_range?.end || dateRange.end_date);
         const dateRangeText = `${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`;
         
+        const scraperApiUsed = result.scraper_api_available ? 'ScraperAPI + AI' : 'Direct fetch + AI';
+        
         if (result.events_final > 0) {
-          toast.success(`🎉 Found ${result.events_final} real events (${dateRangeText}) from ${result.scraped_sources} sources! Research briefs created.`);
+          toast.success(`🎉 ${scraperApiUsed}: Found ${result.events_final} real events (${dateRangeText}) from ${result.scraped_sources}/${result.total_sources} sources!`);
         } else if (result.events_extracted > 0) {
-          toast.success(`✅ Scan completed! Found ${result.events_extracted} events but ${result.competitor_events_filtered} were competitor events (filtered out).`);
+          toast.success(`✅ ${scraperApiUsed}: Found ${result.events_extracted} events but ${result.competitor_events_filtered} were competitor events (filtered out).`);
         } else {
-          toast.success(`✅ Scan completed for ${dateRangeText}! No new relevant events found in current sources.`);
+          toast.success(`✅ ${scraperApiUsed}: Scan completed for ${dateRangeText}! No new relevant events found.`);
         }
         
         // Show source performance if available
         if (result.source_performance) {
           const successfulSources = result.source_performance.filter((s: any) => s.success && s.events_found > 0);
+          const scraperApiSources = result.source_performance.filter((s: any) => s.scraper_api_used);
+          console.log('ScraperAPI sources:', scraperApiSources.length);
           console.log('Successful sources:', successfulSources.map((s: any) => `${s.name}: ${s.events_found} events`));
+        }
+        
+        if (!result.scraper_api_available) {
+          toast.error('⚠️ ScraperAPI not configured - using less reliable direct fetch. Configure SCRAPER_API_KEY for best results.', {
+            duration: 8000
+          });
         }
       } else {
         toast.error(`❌ Scan failed: ${result.error || 'Unknown error'}`);
@@ -277,7 +291,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
       }, 2000);
       
     } catch (error) {
-      console.error('Error triggering manual scan:', error);
+      console.error('Error triggering ScraperAPI scan:', error);
       
       if (error instanceof Error) {
         if (error.message.includes('404')) {
@@ -387,9 +401,16 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Event Engine</h1>
-          <p className="text-gray-600">Proactive local event discovery from ALL sources with date range control</p>
+          <p className="text-gray-600">Professional-grade event discovery with ScraperAPI + AI filtering</p>
         </div>
         <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setShowScraperApiInfo(true)}
+            className="flex items-center px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
+          >
+            <Shield className="h-4 w-4 mr-2" />
+            ScraperAPI Info
+          </button>
           <button
             onClick={() => setShowDateRangeModal(true)}
             className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -412,7 +433,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
             {scanning ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Scanning ALL Sources...
+                ScraperAPI Scanning...
               </>
             ) : (
               <>
@@ -424,42 +445,42 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
         </div>
       </div>
 
-      {/* How It Works */}
+      {/* ScraperAPI Architecture */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200 p-6"
+        className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl border border-purple-200 p-6"
       >
         <div className="flex items-center space-x-3 mb-4">
-          <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-            <Globe className="h-5 w-5 text-white" />
+          <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-blue-600 rounded-lg flex items-center justify-center">
+            <Server className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h3 className="font-semibold text-gray-900">🤖 FIXED: All Sources + Future Events Engine</h3>
+            <h3 className="font-semibold text-gray-900">🚀 DEFINITIVE SOLUTION: ScraperAPI + AI Architecture</h3>
             <p className="text-sm text-gray-600">
-              Now properly fetches from ALL 11 sources (RSS + HTML) and finds events in your specified date range
+              Professional-grade web scraping with headless browsers, proxies, and intelligent AI filtering
             </p>
           </div>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
           <div className="flex items-start space-x-2">
-            <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-              <span className="text-blue-600 font-semibold text-xs">1</span>
+            <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+              <span className="text-purple-600 font-semibold text-xs">1</span>
             </div>
             <div>
-              <p className="font-medium text-gray-900">ALL Sources (11 total)</p>
-              <p className="text-gray-600">7 RSS feeds + 4 HTML sources from Visit Loudoun, FXVA, Virginia Tourism, and more</p>
+              <p className="font-medium text-gray-900">ScraperAPI Fetching</p>
+              <p className="text-gray-600">Professional service handles ALL 11 sources with headless browsers, proxies, and retries</p>
             </div>
           </div>
           
           <div className="flex items-start space-x-2">
-            <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-              <span className="text-purple-600 font-semibold text-xs">2</span>
+            <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+              <span className="text-blue-600 font-semibold text-xs">2</span>
             </div>
             <div>
-              <p className="font-medium text-gray-900">Date Range Control</p>
-              <p className="text-gray-600">Scan for events in next 3 months (default) or set custom date ranges</p>
+              <p className="font-medium text-gray-900">AI Gatekeeper</p>
+              <p className="text-gray-600">Smart filtering removes competitor events and extracts dates within your range</p>
             </div>
           </div>
           
@@ -468,8 +489,8 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
               <span className="text-green-600 font-semibold text-xs">3</span>
             </div>
             <div>
-              <p className="font-medium text-gray-900">User Selection</p>
-              <p className="text-gray-600">No automatic content generation - you choose which events to create content for</p>
+              <p className="font-medium text-gray-900">User Control</p>
+              <p className="text-gray-600">Research briefs created for real events - you choose which ones to create content for</p>
             </div>
           </div>
         </div>
@@ -605,8 +626,8 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
                           {event.content_count} content created
                         </span>
                       )}
-                      <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
-                        REAL EVENT
+                      <span className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">
+                        SCRAPERAPI
                       </span>
                       {event.event_url && (
                         <a
@@ -654,7 +675,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
                     )}
                     
                     <p className="text-xs text-gray-500">
-                      Discovered {formatTimeAgo(event.created_at)}
+                      Discovered {formatTimeAgo(event.created_at)} via ScraperAPI + AI filtering
                     </p>
                   </div>
                   
@@ -706,7 +727,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
             <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500">No events discovered yet</p>
             <p className="text-sm text-gray-400 mt-1">
-              Click "Quick Scan" to discover real local events from ALL sources now
+              Click "Quick Scan" to discover real local events from ALL sources with ScraperAPI
             </p>
           </div>
         )}
@@ -725,11 +746,11 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
               <Users className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900">Automated Schedule</h3>
+              <h3 className="font-semibold text-gray-900">Automated ScraperAPI Schedule</h3>
               <p className="text-sm text-gray-600">
                 {scheduleSettings.enabled ? (
                   <>
-                    Automatically scans ALL sources for real events every {getDayName(scheduleSettings.day_of_week)} at {formatTime(scheduleSettings.hour)} ({scheduleSettings.timezone}).
+                    Automatically scans ALL sources with ScraperAPI every {getDayName(scheduleSettings.day_of_week)} at {formatTime(scheduleSettings.hour)} ({scheduleSettings.timezone}).
                     When relevant events are found, research briefs are created (no automatic content generation).
                   </>
                 ) : (
@@ -746,6 +767,95 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
           </button>
         </div>
       </motion.div>
+
+      {/* ScraperAPI Info Modal */}
+      {showScraperApiInfo && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                <Shield className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">ScraperAPI Integration</h3>
+                <p className="text-sm text-gray-600">Professional-grade web scraping solution</p>
+              </div>
+            </div>
+            
+            <div className="space-y-6">
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">Why ScraperAPI?</h4>
+                <div className="space-y-2 text-sm text-gray-700">
+                  <p>• <strong>Reliability:</strong> Handles websites that block direct requests</p>
+                  <p>• <strong>Headless Browsers:</strong> Executes JavaScript for dynamic content</p>
+                  <p>• <strong>Proxy Rotation:</strong> Prevents IP blocking and rate limiting</p>
+                  <p>• <strong>Automatic Retries:</strong> Ensures successful data retrieval</p>
+                  <p>• <strong>Global Infrastructure:</strong> Fast, reliable access to all sources</p>
+                </div>
+              </div>
+              
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">Setup Instructions</h4>
+                <div className="bg-gray-50 rounded-lg p-4 space-y-3 text-sm">
+                  <div>
+                    <p className="font-medium text-gray-900">1. Sign up for ScraperAPI</p>
+                    <p className="text-gray-600">Visit <a href="https://www.scraperapi.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">scraperapi.com</a> and create a free account</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">2. Get your API key</p>
+                    <p className="text-gray-600">Copy your API key from the ScraperAPI dashboard</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">3. Add to Supabase</p>
+                    <p className="text-gray-600">Store the key as <code className="bg-gray-200 px-1 rounded">SCRAPER_API_KEY</code> in your Supabase vault</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">Free Tier</h4>
+                <div className="bg-green-50 rounded-lg p-4 text-sm">
+                  <p className="text-green-800">
+                    <strong>1,000 free requests/month</strong> - Perfect for testing and small-scale use.
+                    Each Event Engine scan uses ~11 requests (one per source).
+                  </p>
+                </div>
+              </div>
+              
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">Fallback Behavior</h4>
+                <div className="bg-amber-50 rounded-lg p-4 text-sm">
+                  <p className="text-amber-800">
+                    Without ScraperAPI, the system falls back to direct requests, which are less reliable.
+                    Many sources may fail due to blocking or security measures.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex space-x-3 mt-6">
+              <a
+                href="https://www.scraperapi.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-center"
+              >
+                Sign Up for ScraperAPI
+              </a>
+              <button
+                onClick={() => setShowScraperApiInfo(false)}
+                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Date Range Modal */}
       {showDateRangeModal && (
