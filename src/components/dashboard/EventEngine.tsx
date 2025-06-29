@@ -12,7 +12,11 @@ import {
   AlertCircle,
   Sparkles,
   Globe,
-  Users
+  Users,
+  MoreVertical,
+  Trash2,
+  EyeOff,
+  X
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
@@ -30,12 +34,16 @@ interface ProactiveEvent {
   seasonal_context: string;
   created_at: string;
   content_count: number;
+  key_points: string[];
 }
 
 export function EventEngine({ wineryProfile }: EventEngineProps) {
   const [events, setEvents] = useState<ProactiveEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingEvent, setDeletingEvent] = useState<ProactiveEvent | null>(null);
   const [stats, setStats] = useState({
     totalEvents: 0,
     thisWeekEvents: 0,
@@ -61,13 +69,14 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
           local_event_date,
           local_event_location,
           seasonal_context,
+          key_points,
           created_at,
           content_calendar!research_brief_id(count)
         `)
         .eq('winery_id', wineryProfile.id)
         .not('local_event_name', 'is', null)
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(20);
 
       if (error) throw error;
 
@@ -111,7 +120,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
         .eq('winery_id', wineryProfile.id)
         .not('research_brief_id', 'is', null);
 
-      // Get last scan time (approximate) - Fixed: removed .single() and safely access array
+      // Get last scan time (approximate)
       const { data: lastBriefs } = await supabase
         .from('research_briefs')
         .select('created_at')
@@ -188,6 +197,47 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
     } finally {
       setScanning(false);
     }
+  };
+
+  const handleDeleteEvent = async () => {
+    if (!deletingEvent) return;
+
+    try {
+      // First, delete any associated content
+      const { error: contentError } = await supabase
+        .from('content_calendar')
+        .delete()
+        .eq('research_brief_id', deletingEvent.id);
+
+      if (contentError) {
+        console.warn('Error deleting associated content:', contentError);
+      }
+
+      // Then delete the research brief
+      const { error } = await supabase
+        .from('research_briefs')
+        .delete()
+        .eq('id', deletingEvent.id);
+
+      if (error) throw error;
+      
+      setEvents(prev => prev.filter(event => event.id !== deletingEvent.id));
+      toast.success('Event and associated content deleted successfully');
+      setShowDeleteModal(false);
+      setDeletingEvent(null);
+      
+      // Refresh stats
+      await fetchStats();
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      toast.error('Failed to delete event');
+    }
+  };
+
+  const openDeleteModal = (event: ProactiveEvent) => {
+    setDeletingEvent(event);
+    setShowDeleteModal(true);
+    setActiveDropdown(null);
   };
 
   const formatDate = (dateString: string) => {
@@ -413,6 +463,24 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
                     
                     <p className="text-sm text-gray-700 mb-2">{event.seasonal_context}</p>
                     
+                    {event.key_points && event.key_points.length > 0 && (
+                      <div className="mb-2">
+                        <p className="text-xs font-medium text-gray-600 mb-1">Key Details:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {event.key_points.slice(0, 3).map((point, idx) => (
+                            <span key={idx} className="bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded">
+                              {point.length > 30 ? `${point.substring(0, 30)}...` : point}
+                            </span>
+                          ))}
+                          {event.key_points.length > 3 && (
+                            <span className="text-xs text-gray-500">
+                              +{event.key_points.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
                     <p className="text-xs text-gray-500">
                       Discovered {formatTimeAgo(event.created_at)}
                     </p>
@@ -424,6 +492,27 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
                     ) : (
                       <AlertCircle className="h-5 w-5 text-amber-500" />
                     )}
+                    
+                    <div className="relative">
+                      <button 
+                        className="p-1 text-gray-400 hover:text-gray-600"
+                        onClick={() => setActiveDropdown(activeDropdown === event.id ? null : event.id)}
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </button>
+                      
+                      {activeDropdown === event.id && (
+                        <div className="absolute right-0 top-6 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[120px]">
+                          <button
+                            onClick={() => openDeleteModal(event)}
+                            className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center"
+                          >
+                            <Trash2 className="h-3 w-3 mr-2" />
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -460,6 +549,70 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
           </div>
         </div>
       </motion.div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && deletingEvent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-xl shadow-xl max-w-md w-full p-6"
+          >
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                <Trash2 className="h-5 w-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Delete Event</h3>
+                <p className="text-sm text-gray-600">This will also delete any associated content</p>
+              </div>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-sm text-gray-700 mb-2">
+                Are you sure you want to delete this event and all its associated content?
+              </p>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="font-medium text-gray-900 text-sm">{deletingEvent.local_event_name}</p>
+                <p className="text-xs text-gray-600 mt-1">
+                  {deletingEvent.local_event_date ? formatDate(deletingEvent.local_event_date) : 'Date TBD'} • {deletingEvent.local_event_location}
+                </p>
+                {deletingEvent.content_count > 0 && (
+                  <p className="text-xs text-red-600 mt-1">
+                    ⚠️ This will delete {deletingEvent.content_count} associated content piece(s)
+                  </p>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeletingEvent(null);
+                }}
+                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteEvent}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Delete Event
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Click outside to close dropdown */}
+      {activeDropdown && (
+        <div 
+          className="fixed inset-0 z-5"
+          onClick={() => setActiveDropdown(null)}
+        />
+      )}
     </div>
   );
 }

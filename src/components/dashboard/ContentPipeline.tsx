@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Search, Filter, MoreVertical, Edit, Trash2, Eye } from 'lucide-react';
+import { Plus, Search, Filter, MoreVertical, Edit, Trash2, Eye, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { ContentEditor } from '../content/ContentEditor';
+import toast from 'react-hot-toast';
 
 interface ContentPipelineProps {
   wineryProfile: any;
@@ -24,6 +25,9 @@ export function ContentPipeline({ wineryProfile }: ContentPipelineProps) {
   const [filterType, setFilterType] = useState('all');
   const [showEditor, setShowEditor] = useState(false);
   const [editingContent, setEditingContent] = useState<any>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingContent, setDeletingContent] = useState<any>(null);
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
   useEffect(() => {
     if (wineryProfile) {
@@ -61,26 +65,39 @@ export function ContentPipeline({ wineryProfile }: ContentPipelineProps) {
       setContent(prev => prev.map(item => 
         item.id === contentId ? { ...item, status: newStatus } : item
       ));
+      
+      toast.success('Content status updated successfully');
     } catch (error) {
       console.error('Error updating content status:', error);
+      toast.error('Failed to update content status');
     }
   };
 
-  const handleDeleteContent = async (contentId: string) => {
-    if (!confirm('Are you sure you want to delete this content?')) return;
+  const handleDeleteContent = async () => {
+    if (!deletingContent) return;
 
     try {
       const { error } = await supabase
         .from('content_calendar')
         .delete()
-        .eq('id', contentId);
+        .eq('id', deletingContent.id);
 
       if (error) throw error;
       
-      setContent(prev => prev.filter(item => item.id !== contentId));
+      setContent(prev => prev.filter(item => item.id !== deletingContent.id));
+      toast.success('Content deleted successfully');
+      setShowDeleteModal(false);
+      setDeletingContent(null);
     } catch (error) {
       console.error('Error deleting content:', error);
+      toast.error('Failed to delete content');
     }
+  };
+
+  const openDeleteModal = (content: any) => {
+    setDeletingContent(content);
+    setShowDeleteModal(true);
+    setActiveDropdown(null);
   };
 
   const filteredContent = content.filter(item => {
@@ -186,25 +203,53 @@ export function ContentPipeline({ wineryProfile }: ContentPipelineProps) {
                   <motion.div
                     key={item.id}
                     layout
-                    className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow cursor-pointer"
-                    onClick={() => {
-                      setEditingContent(item);
-                      setShowEditor(true);
-                    }}
+                    className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow"
                   >
                     <div className="flex items-start justify-between mb-3">
-                      <h4 className="font-medium text-gray-900 text-sm line-clamp-2">
+                      <h4 
+                        className="font-medium text-gray-900 text-sm line-clamp-2 cursor-pointer hover:text-amber-600"
+                        onClick={() => {
+                          setEditingContent(item);
+                          setShowEditor(true);
+                        }}
+                      >
                         {item.title}
                       </h4>
                       <div className="relative">
-                        <button className="p-1 text-gray-400 hover:text-gray-600">
+                        <button 
+                          className="p-1 text-gray-400 hover:text-gray-600"
+                          onClick={() => setActiveDropdown(activeDropdown === item.id ? null : item.id)}
+                        >
                           <MoreVertical className="h-4 w-4" />
                         </button>
+                        
+                        {activeDropdown === item.id && (
+                          <div className="absolute right-0 top-6 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[120px]">
+                            <button
+                              onClick={() => {
+                                setEditingContent(item);
+                                setShowEditor(true);
+                                setActiveDropdown(null);
+                              }}
+                              className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center"
+                            >
+                              <Edit className="h-3 w-3 mr-2" />
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => openDeleteModal(item)}
+                              className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center"
+                            >
+                              <Trash2 className="h-3 w-3 mr-2" />
+                              Delete
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                     
                     <p className="text-xs text-gray-600 mb-3 line-clamp-2">
-                      {item.content}
+                      {item.content.replace(/<[^>]*>/g, '')}
                     </p>
                     
                     <div className="flex items-center justify-between">
@@ -215,6 +260,14 @@ export function ContentPipeline({ wineryProfile }: ContentPipelineProps) {
                         {formatDate(item.created_at)}
                       </span>
                     </div>
+                    
+                    {item.research_brief_id && (
+                      <div className="mt-2">
+                        <span className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">
+                          Auto-generated
+                        </span>
+                      </div>
+                    )}
                     
                     {item.scheduled_date && (
                       <div className="mt-2 text-xs text-amber-600">
@@ -249,6 +302,65 @@ export function ContentPipeline({ wineryProfile }: ContentPipelineProps) {
             setShowEditor(false);
             setEditingContent(null);
           }}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && deletingContent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-xl shadow-xl max-w-md w-full p-6"
+          >
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                <Trash2 className="h-5 w-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Delete Content</h3>
+                <p className="text-sm text-gray-600">This action cannot be undone</p>
+              </div>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-sm text-gray-700 mb-2">
+                Are you sure you want to delete this content?
+              </p>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="font-medium text-gray-900 text-sm">{deletingContent.title}</p>
+                <p className="text-xs text-gray-600 mt-1">
+                  {deletingContent.content_type.replace('_', ' ')} • {formatDate(deletingContent.created_at)}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeletingContent(null);
+                }}
+                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteContent}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Click outside to close dropdown */}
+      {activeDropdown && (
+        <div 
+          className="fixed inset-0 z-5"
+          onClick={() => setActiveDropdown(null)}
         />
       )}
     </div>
