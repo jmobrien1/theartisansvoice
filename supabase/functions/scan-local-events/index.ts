@@ -324,7 +324,7 @@ ${combinedText}`;
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4',
+          model: 'gpt-4o',
           response_format: { type: "json_object" },
           messages: [
             { role: 'system', content: analysisPrompt },
@@ -541,10 +541,10 @@ function extractEventContent(html: string, sourceType: string): string {
     
     // Decode HTML entities
     cleaned = cleaned.replace(/&nbsp;/g, ' ');
-    cleaned = cleaned.replace(/&amp;/g, '&');
-    cleaned = cleaned.replace(/&lt;/g, '<');
-    cleaned = cleaned.replace(/&gt;/g, '>');
-    cleaned = cleaned.replace(/&quot;/g, '"');
+    cleaned = cleaned.replace(/&/g, '&');
+    cleaned = cleaned.replace(/</g, '<');
+    cleaned = cleaned.replace(/>/g, '>');
+    cleaned = cleaned.replace(/"/g, '"');
     cleaned = cleaned.replace(/&#39;/g, "'");
     cleaned = cleaned.replace(/&rsquo;/g, "'");
     cleaned = cleaned.replace(/&ldquo;/g, '"');
