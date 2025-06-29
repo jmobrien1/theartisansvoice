@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Sparkles, FileText, Loader2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
@@ -20,6 +20,8 @@ export function OnboardingWizard() {
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [analyzingBrandVoice, setAnalyzingBrandVoice] = useState(false);
+  const [brandGuideText, setBrandGuideText] = useState('');
   const [formData, setFormData] = useState({
     winery_name: '',
     owner_name: '',
@@ -48,6 +50,49 @@ export function OnboardingWizard() {
   const handlePrevious = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const handleAnalyzeBrandVoice = async () => {
+    if (!brandGuideText.trim()) {
+      toast.error('Please paste your brand guide text first');
+      return;
+    }
+
+    if (brandGuideText.trim().length < 50) {
+      toast.error('Please provide a more detailed brand guide (at least 50 characters)');
+      return;
+    }
+
+    setAnalyzingBrandVoice(true);
+    
+    try {
+      const { data: analysis, error } = await supabase.functions.invoke('analyze-brand-voice', {
+        body: { documentText: brandGuideText }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      // Populate form fields with AI analysis
+      setFormData(prev => ({
+        ...prev,
+        brand_personality_summary: analysis.brand_personality_summary || '',
+        core_tone_attributes: analysis.core_tone_attributes || '',
+        messaging_style: analysis.messaging_style || '',
+        vocabulary_to_use: analysis.vocabulary_to_use || '',
+        vocabulary_to_avoid: analysis.vocabulary_to_avoid || '',
+        ai_writing_guidelines: analysis.ai_writing_guidelines || ''
+      }));
+
+      toast.success('✨ Analysis complete! Please review the fields below and make any adjustments.');
+      
+    } catch (error) {
+      console.error('Error analyzing brand voice:', error);
+      toast.error('Failed to analyze brand guide. Please try again or fill out the form manually.');
+    } finally {
+      setAnalyzingBrandVoice(false);
     }
   };
 
@@ -140,36 +185,99 @@ export function OnboardingWizard() {
 
       case 2:
         return (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Brand Personality Summary * (minimum 50 characters)
-              </label>
-              <textarea
-                value={formData.brand_personality_summary}
-                onChange={(e) => setFormData(prev => ({ ...prev, brand_personality_summary: e.target.value }))}
-                rows={4}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                placeholder="Describe your winery's personality. Are you sophisticated and elegant? Approachable and friendly? Traditional and heritage-focused? Modern and innovative?"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                {formData.brand_personality_summary.length}/50 characters minimum
-              </p>
+          <div className="space-y-6">
+            {/* AI Brand Voice Analyzer */}
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200 p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="w-10 h-10 bg-gradient-to-r from-amber-500 to-orange-600 rounded-lg flex items-center justify-center">
+                  <Sparkles className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">✨ AI Brand Voice Analyzer</h3>
+                  <p className="text-sm text-gray-600">
+                    Have an existing brand guide? Paste it below and let AI extract your brand voice automatically!
+                  </p>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <FileText className="h-4 w-4 inline mr-1" />
+                    Paste Your Brand Guide Document
+                  </label>
+                  <textarea
+                    value={brandGuideText}
+                    onChange={(e) => setBrandGuideText(e.target.value)}
+                    rows={6}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                    placeholder="Paste your existing brand guide, style guide, or any document that describes your brand personality, tone, and voice. The AI will analyze it and automatically fill out the form fields below..."
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Minimum 50 characters required for analysis
+                  </p>
+                </div>
+                
+                <button
+                  onClick={handleAnalyzeBrandVoice}
+                  disabled={analyzingBrandVoice || !brandGuideText.trim()}
+                  className="flex items-center px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-lg hover:from-amber-700 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {analyzingBrandVoice ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Analyzing with AI...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Analyze with AI
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Core Tone Attributes *
-              </label>
-              <input
-                type="text"
-                value={formData.core_tone_attributes}
-                onChange={(e) => setFormData(prev => ({ ...prev, core_tone_attributes: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                placeholder="e.g., Elegant, Sophisticated, Warm, Approachable, Authentic"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                List 3-5 key words that describe your brand's tone
-              </p>
+
+            {/* Manual Form Fields */}
+            <div className="space-y-4">
+              <div className="border-t border-gray-200 pt-6">
+                <h4 className="font-medium text-gray-900 mb-4">Brand Voice Details</h4>
+                <p className="text-sm text-gray-600 mb-4">
+                  Fill these out manually or use the AI analyzer above to auto-populate them.
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Brand Personality Summary * (minimum 50 characters)
+                </label>
+                <textarea
+                  value={formData.brand_personality_summary}
+                  onChange={(e) => setFormData(prev => ({ ...prev, brand_personality_summary: e.target.value }))}
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  placeholder="Describe your winery's personality. Are you sophisticated and elegant? Approachable and friendly? Traditional and heritage-focused? Modern and innovative?"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.brand_personality_summary.length}/50 characters minimum
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Core Tone Attributes *
+                </label>
+                <input
+                  type="text"
+                  value={formData.core_tone_attributes}
+                  onChange={(e) => setFormData(prev => ({ ...prev, core_tone_attributes: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  placeholder="e.g., Elegant, Sophisticated, Warm, Approachable, Authentic"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  List 3-5 key words that describe your brand's tone
+                </p>
+              </div>
             </div>
           </div>
         );
