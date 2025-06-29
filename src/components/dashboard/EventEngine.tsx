@@ -133,22 +133,58 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
 
   const triggerManualScan = async () => {
     setScanning(true);
+    
     try {
-      const { data, error } = await supabase.functions.invoke('scan-local-events', {
-        body: { manual_trigger: true }
+      console.log('Triggering manual scan...');
+      
+      // Call the scan-local-events function
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/scan-local-events`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          manual_trigger: true,
+          winery_id: wineryProfile.id 
+        })
       });
 
-      if (error) throw error;
+      const result = await response.json();
 
-      toast.success('🎉 Event scan completed! Check your content pipeline for new opportunities.');
+      if (!response.ok) {
+        throw new Error(result.error || `HTTP error! status: ${response.status}`);
+      }
+
+      console.log('Scan result:', result);
+
+      if (result.success) {
+        toast.success(`🎉 Event scan completed! Found ${result.events_processed || 0} events and generated ${result.content_generated || 0} pieces of content.`);
+      } else {
+        toast.success('✅ Event scan completed successfully!');
+      }
       
-      // Refresh data
-      await fetchProactiveEvents();
-      await fetchStats();
+      // Refresh data after a short delay to allow for processing
+      setTimeout(async () => {
+        await fetchProactiveEvents();
+        await fetchStats();
+      }, 2000);
       
     } catch (error) {
       console.error('Error triggering manual scan:', error);
-      toast.error('Failed to trigger event scan. Please try again.');
+      
+      // Provide more specific error messages
+      if (error instanceof Error) {
+        if (error.message.includes('404')) {
+          toast.error('Event scanning function not found. Please check your Supabase Edge Functions deployment.');
+        } else if (error.message.includes('401') || error.message.includes('403')) {
+          toast.error('Authentication error. Please check your Supabase configuration.');
+        } else {
+          toast.error(`Scan failed: ${error.message}`);
+        }
+      } else {
+        toast.error('Failed to trigger event scan. Please try again.');
+      }
     } finally {
       setScanning(false);
     }
