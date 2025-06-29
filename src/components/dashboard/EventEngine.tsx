@@ -83,20 +83,29 @@ export default function EventEngine() {
       setError(null);
       setSuccess(null);
 
-      const { data, error } = await supabase.functions.invoke('scan-local-events', {
-        body: {
+      // Use direct fetch instead of supabase.functions.invoke for better error handling
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/scan-local-events`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           manual_trigger: true,
           winery_id: wineryProfile.id,
           date_range: {
             start_date: new Date().toISOString(),
             end_date: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString() // 3 months
           }
-        }
+        })
       });
 
-      if (error) {
-        throw new Error(`Event scanning failed: ${error.message}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
+
+      const data = await response.json();
 
       if (data?.success) {
         setSuccess(`Event scan completed! Found ${data.events_final || 0} relevant events and created ${data.briefs_created || 0} research briefs.`);
@@ -106,7 +115,21 @@ export default function EventEngine() {
       }
     } catch (err) {
       console.error('Error scanning events:', err);
-      setError(err instanceof Error ? err.message : 'Failed to scan events');
+      let errorMessage = 'Failed to scan events';
+      
+      if (err instanceof Error) {
+        if (err.message.includes('Failed to fetch')) {
+          errorMessage = 'Network error: Unable to connect to the Edge Function. Please check your internet connection and try again.';
+        } else if (err.message.includes('HTTP 404')) {
+          errorMessage = 'Edge Function not found. The scan-local-events function may not be deployed.';
+        } else if (err.message.includes('HTTP 500')) {
+          errorMessage = 'Server error in the Edge Function. Please try again in a few moments.';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
+      setError(errorMessage);
     } finally {
       setScanning(false);
     }
@@ -133,31 +156,32 @@ export default function EventEngine() {
           'Visit our winery to discover exceptional wines crafted with passion.'
       };
 
-      const { data, error } = await supabase.functions.invoke('generate-content', {
-        body: {
+      // Use direct fetch instead of supabase.functions.invoke for better error handling
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-content`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           winery_id: wineryProfile.id,
           content_request: contentRequest,
           research_brief_id: brief.id
-        }
+        })
       });
 
-      if (error) {
-        // Provide more specific error information
-        let errorMessage = 'Failed to send a request to the Edge Function';
-        
-        if (error.message) {
-          errorMessage = error.message;
-        } else if (typeof error === 'string') {
-          errorMessage = error;
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
         }
-        
-        // Check for common configuration issues
-        if (errorMessage.includes('Failed to fetch') || errorMessage.includes('TypeError')) {
-          errorMessage = 'Edge Function configuration error. Please check that your Supabase project has the required environment variables configured (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY).';
-        }
-        
-        throw new Error(errorMessage);
+        throw new Error(errorData.error || errorData.details || `HTTP ${response.status}`);
       }
+
+      const data = await response.json();
 
       if (data?.success) {
         setSuccess(`Content created successfully! "${data.data?.content?.title}" has been added to your content calendar.`);
@@ -166,7 +190,23 @@ export default function EventEngine() {
       }
     } catch (err) {
       console.error('Error creating content:', err);
-      setError(`Error creating content: ${err instanceof Error ? err.message : 'Unknown error occurred'}`);
+      let errorMessage = 'Failed to create content';
+      
+      if (err instanceof Error) {
+        if (err.message.includes('Failed to fetch')) {
+          errorMessage = 'Network error: Unable to connect to the Edge Function. Please check your internet connection and try again.';
+        } else if (err.message.includes('HTTP 404')) {
+          errorMessage = 'Edge Function not found. The generate-content function may not be deployed.';
+        } else if (err.message.includes('HTTP 500')) {
+          errorMessage = 'Server error in the Edge Function. Please try again in a few moments.';
+        } else if (err.message.includes('configuration error')) {
+          errorMessage = 'Edge Function configuration error. Please contact support.';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
+      setError(errorMessage);
     } finally {
       setCreating(null);
     }
@@ -236,14 +276,14 @@ export default function EventEngine() {
           <div>
             <h3 className="text-red-800 font-medium">Error</h3>
             <p className="text-red-700 text-sm mt-1">{error}</p>
-            {error.includes('configuration error') && (
+            {error.includes('Network error') && (
               <div className="mt-2 text-xs text-red-600">
-                <p>To fix this issue:</p>
+                <p>Troubleshooting steps:</p>
                 <ol className="list-decimal list-inside mt-1 space-y-1">
-                  <li>Go to your Supabase project dashboard</li>
-                  <li>Navigate to Edge Functions → Secrets</li>
-                  <li>Ensure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set correctly</li>
-                  <li>Verify the values don't contain typos or extra spaces</li>
+                  <li>Check your internet connection</li>
+                  <li>Refresh the page and try again</li>
+                  <li>Verify the Supabase project is running</li>
+                  <li>Check if Edge Functions are deployed in your Supabase dashboard</li>
                 </ol>
               </div>
             )}
