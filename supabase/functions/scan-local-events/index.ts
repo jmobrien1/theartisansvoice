@@ -1,21 +1,21 @@
 /*
-  # Comprehensive Event Engine with Two-Step AI Analysis
+  # Comprehensive Event Engine - Fixed Version
 
   1. Purpose
-    - Uses ALL RSS feeds for maximum structured data coverage
-    - Implements two-step AI analysis: Extract → Filter (Gatekeeper)
-    - Filters out competitor events while keeping general interest events
-    - Provides event links for users to visit for details
+    - Pulls from ALL RSS sources (not just Visit Loudoun)
+    - Finds events for the NEXT 3 MONTHS (not past events)
+    - Creates research briefs WITHOUT automatic content generation
+    - Allows users to select which events to create content for
 
   2. Two-Step AI Process
     - Step 1: Extract all potential events from RSS/HTML data
     - Step 2: AI "Gatekeeper" filters out competitor events, keeps good opportunities
 
   3. Enhanced Features
-    - Smart source prioritization (RSS first, then by priority)
-    - Comprehensive competitor filtering logic
-    - Event URL extraction and construction
-    - Real-time progress tracking and detailed logging
+    - Date filtering for future events only
+    - No automatic content generation
+    - Event URL extraction for user access
+    - Comprehensive source coverage
 */
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
@@ -131,6 +131,7 @@ interface PotentialEvent {
   location?: string;
   source_name: string;
   source_region: string;
+  event_date?: string;
 }
 
 interface FilteredEvent {
@@ -157,6 +158,79 @@ interface ScrapedContent {
   events_extracted?: PotentialEvent[];
 }
 
+// Helper function to check if an event is in the future (next 3 months)
+function isEventInFuture(eventDateStr: string): boolean {
+  try {
+    const eventDate = new Date(eventDateStr);
+    const now = new Date();
+    const threeMonthsFromNow = new Date();
+    threeMonthsFromNow.setMonth(now.getMonth() + 3);
+    
+    // Event must be after today and within the next 3 months
+    return eventDate > now && eventDate <= threeMonthsFromNow;
+  } catch {
+    return false;
+  }
+}
+
+// Helper function to extract and parse dates from event text
+function extractEventDate(title: string, description: string, pubDate: string): string | null {
+  const text = `${title} ${description}`.toLowerCase();
+  
+  // Current year and next year
+  const currentYear = new Date().getFullYear();
+  const nextYear = currentYear + 1;
+  
+  // Month patterns
+  const monthPatterns = [
+    { pattern: /january|jan\.?/g, month: 0 },
+    { pattern: /february|feb\.?/g, month: 1 },
+    { pattern: /march|mar\.?/g, month: 2 },
+    { pattern: /april|apr\.?/g, month: 3 },
+    { pattern: /may/g, month: 4 },
+    { pattern: /june|jun\.?/g, month: 5 },
+    { pattern: /july|jul\.?/g, month: 6 },
+    { pattern: /august|aug\.?/g, month: 7 },
+    { pattern: /september|sept?\.?/g, month: 8 },
+    { pattern: /october|oct\.?/g, month: 9 },
+    { pattern: /november|nov\.?/g, month: 10 },
+    { pattern: /december|dec\.?/g, month: 11 }
+  ];
+  
+  // Try to find month and day patterns
+  for (const monthInfo of monthPatterns) {
+    if (monthInfo.pattern.test(text)) {
+      // Look for day numbers near the month
+      const dayMatch = text.match(new RegExp(`${monthInfo.pattern.source}\\s*(\\d{1,2})`, 'i'));
+      if (dayMatch) {
+        const day = parseInt(dayMatch[1]);
+        if (day >= 1 && day <= 31) {
+          // Determine year (current or next based on if the date has passed)
+          const testDate = new Date(currentYear, monthInfo.month, day);
+          const year = testDate < new Date() ? nextYear : currentYear;
+          
+          const eventDate = new Date(year, monthInfo.month, day);
+          return eventDate.toISOString();
+        }
+      }
+    }
+  }
+  
+  // Try to parse the pubDate if available
+  if (pubDate) {
+    try {
+      const date = new Date(pubDate);
+      if (!isNaN(date.getTime())) {
+        return date.toISOString();
+      }
+    } catch {
+      // Ignore parsing errors
+    }
+  }
+  
+  return null;
+}
+
 Deno.serve(async (req: Request) => {
   try {
     if (req.method === "OPTIONS") {
@@ -173,7 +247,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    console.log('🚀 Starting COMPREHENSIVE event scan with TWO-STEP AI ANALYSIS...');
+    console.log('🚀 Starting COMPREHENSIVE event scan for FUTURE EVENTS (next 3 months)...');
     console.log(`📊 Total sources configured: ${EVENT_SOURCES.length}`);
     
     const rssSources = EVENT_SOURCES.filter(s => s.type === 'rss');
@@ -256,7 +330,16 @@ Deno.serve(async (req: Request) => {
             cleanedText = htmlResult.text;
           }
           
-          console.log(`✅ Successfully fetched ${source.name}: ${extractedEvents.length} events extracted (${cleanedText.length} chars, ${source.type.toUpperCase()})`);
+          // Filter for future events only (next 3 months)
+          const futureEvents = extractedEvents.filter(event => {
+            if (event.event_date) {
+              return isEventInFuture(event.event_date);
+            }
+            // If no specific date, keep it for AI analysis
+            return true;
+          });
+          
+          console.log(`✅ Successfully fetched ${source.name}: ${extractedEvents.length} total events, ${futureEvents.length} future events (${cleanedText.length} chars, ${source.type.toUpperCase()})`);
           return { 
             url: source.url, 
             name: source.name,
@@ -266,7 +349,7 @@ Deno.serve(async (req: Request) => {
             priority: source.priority,
             type: source.type,
             content_length: cleanedText.length,
-            events_extracted: extractedEvents
+            events_extracted: futureEvents
           };
           
         } catch (error) {
@@ -293,11 +376,16 @@ Deno.serve(async (req: Request) => {
     
     console.log(`📊 COMPREHENSIVE FETCH RESULTS:`);
     console.log(`   Total sources: ${EVENT_SOURCES.length}`);
-    console.log(`   Successful with events: ${successfulScrapes.length}`);
-    console.log(`   RSS feeds with events: ${successfulRSS.length}/${rssSources.length}`);
-    console.log(`   HTML sources with events: ${successfulHTML.length}/${htmlSources.length}`);
+    console.log(`   Successful with future events: ${successfulScrapes.length}`);
+    console.log(`   RSS feeds with future events: ${successfulRSS.length}/${rssSources.length}`);
+    console.log(`   HTML sources with future events: ${successfulHTML.length}/${htmlSources.length}`);
     
-    // Combine all extracted events
+    // Log which sources were successful
+    successfulScrapes.forEach(content => {
+      console.log(`   ✅ ${content.name}: ${content.events_extracted?.length || 0} future events`);
+    });
+    
+    // Combine all extracted future events
     const allPotentialEvents: PotentialEvent[] = [];
     successfulScrapes.forEach(content => {
       if (content.events_extracted) {
@@ -305,17 +393,22 @@ Deno.serve(async (req: Request) => {
       }
     });
     
-    console.log(`🎯 Total potential events extracted: ${allPotentialEvents.length}`);
+    console.log(`🎯 Total potential FUTURE events extracted: ${allPotentialEvents.length}`);
     
     if (allPotentialEvents.length === 0) {
-      console.error('❌ CRITICAL: No events extracted from any source');
+      console.error('❌ CRITICAL: No future events extracted from any source');
       return new Response(JSON.stringify({
         success: false,
-        error: "No events could be extracted from any source",
+        error: "No future events could be extracted from any source",
         scraped_sources: successfulScrapes.length,
         total_sources: EVENT_SOURCES.length,
         rss_sources_successful: successfulRSS.length,
-        html_sources_successful: successfulHTML.length
+        html_sources_successful: successfulHTML.length,
+        source_details: successfulScrapes.map(s => ({
+          name: s.name,
+          type: s.type,
+          events_found: s.events_extracted?.length || 0
+        }))
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -339,7 +432,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const gatekeeperPrompt = `You are a savvy local marketing strategist for boutique Virginia craft beverage brands. Your job is to analyze a list of events and identify ONLY the events that are good, non-competitive marketing opportunities.
+    const gatekeeperPrompt = `You are a savvy local marketing strategist for boutique Virginia craft beverage brands. Your job is to analyze a list of FUTURE events (next 3 months) and identify ONLY the events that are good, non-competitive marketing opportunities.
 
 CRITICAL FILTERING RULES:
 
@@ -365,14 +458,15 @@ ANALYSIS INSTRUCTIONS:
 2. If it mentions a specific winery, brewery, cidery, or distillery name as the host/organizer, EXCLUDE it
 3. If it's a general community event that happens to be AT a venue but isn't hosted BY that venue, INCLUDE it
 4. Focus on events that would attract wine-buying demographics but aren't competitive
+5. Only include events that are clearly in the FUTURE (not past events)
 
 Respond ONLY with a valid JSON object with a single key "relevant_events", which is an array of the event objects that passed your filter. Keep all original fields for events that pass. If no events are relevant, return {"relevant_events":[]}.
 
-EVENTS TO ANALYZE:
+FUTURE EVENTS TO ANALYZE:
 ${JSON.stringify(allPotentialEvents)}`;
 
     try {
-      console.log('🔄 Sending events to AI Gatekeeper for competitor filtering...');
+      console.log('🔄 Sending future events to AI Gatekeeper for competitor filtering...');
       
       const gatekeeperResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -385,7 +479,7 @@ ${JSON.stringify(allPotentialEvents)}`;
           response_format: { type: "json_object" },
           messages: [
             { role: 'system', content: gatekeeperPrompt },
-            { role: 'user', content: 'Please analyze the events and filter out competitor events, keeping only good marketing opportunities.' }
+            { role: 'user', content: 'Please analyze the future events and filter out competitor events, keeping only good marketing opportunities.' }
           ],
           max_tokens: 4000,
           temperature: 0.1,
@@ -402,15 +496,15 @@ ${JSON.stringify(allPotentialEvents)}`;
       const filteredEvents: PotentialEvent[] = gatekeeperResult.relevant_events || [];
 
       console.log(`🛡️ GATEKEEPER RESULTS:`);
-      console.log(`   Events before filtering: ${allPotentialEvents.length}`);
-      console.log(`   Events after filtering: ${filteredEvents.length}`);
+      console.log(`   Future events before filtering: ${allPotentialEvents.length}`);
+      console.log(`   Future events after filtering: ${filteredEvents.length}`);
       console.log(`   Competitor events filtered out: ${allPotentialEvents.length - filteredEvents.length}`);
 
       if (filteredEvents.length === 0) {
-        console.log('ℹ️ No relevant non-competitor events found after gatekeeper filtering');
+        console.log('ℹ️ No relevant non-competitor future events found after gatekeeper filtering');
         return new Response(JSON.stringify({ 
           success: true,
-          message: "Gatekeeper completed - no relevant non-competitor events found",
+          message: "Gatekeeper completed - no relevant non-competitor future events found",
           events_before_filtering: allPotentialEvents.length,
           events_after_filtering: 0,
           competitor_events_filtered: allPotentialEvents.length,
@@ -420,18 +514,24 @@ ${JSON.stringify(allPotentialEvents)}`;
         });
       }
 
-      // --- Step 3: Enhanced Analysis of Filtered Events ---
-      console.log('🤖 Running enhanced analysis on filtered non-competitor events...');
+      // --- Step 3: Enhanced Analysis of Filtered Future Events ---
+      console.log('🤖 Running enhanced analysis on filtered non-competitor future events...');
+      
+      const today = new Date();
+      const threeMonthsFromNow = new Date();
+      threeMonthsFromNow.setMonth(today.getMonth() + 3);
       
       const enhancedAnalysisPrompt = `You are an expert event analyst specializing in wine tourism and craft beverage marketing opportunities in Virginia. 
 
-You have been provided with ${filteredEvents.length} PRE-FILTERED events that have already passed the competitor screening. These are confirmed to be NON-COMPETITIVE events that could be good marketing opportunities.
+You have been provided with ${filteredEvents.length} PRE-FILTERED future events that have already passed the competitor screening. These are confirmed to be NON-COMPETITIVE events that could be good marketing opportunities.
 
-Your task is to analyze these filtered events and provide enhanced details for each one, focusing on wine tourism and marketing potential.
+IMPORTANT: Today's date is ${today.toLocaleDateString()}. Only analyze events that are clearly in the FUTURE (between now and ${threeMonthsFromNow.toLocaleDateString()}).
 
-For each event, provide:
+Your task is to analyze these filtered future events and provide enhanced details for each one, focusing on wine tourism and marketing potential.
+
+For each FUTURE event, provide:
 - event_name: The EXACT name from the source
-- event_date: Specific date in YYYY-MM-DD format (extract from description or use best estimate)
+- event_date: Specific date in YYYY-MM-DD format (must be in the future, between ${today.toISOString().split('T')[0]} and ${threeMonthsFromNow.toISOString().split('T')[0]})
 - event_location: Exact venue name and city from the source
 - event_summary: 1-2 sentences explaining the event and why it's perfect for winery marketing
 - event_url: The direct link to the event page (use the provided link field)
@@ -441,16 +541,15 @@ For each event, provide:
 
 QUALITY STANDARDS:
 - Only include events with relevance_score of 6 or higher
+- Only include events that are clearly in the FUTURE (not past events)
 - Focus on events that would attract wine-buying demographics
 - Look for events where wineries could participate, sponsor, or create tie-in content
 - Provide specific, actionable event summaries
 - Ensure event_url is properly formatted
 
-Today's date is ${new Date().toLocaleDateString()}.
-
 Respond ONLY with a valid JSON object containing a single key "events", which is an array of enhanced event objects.
 
-FILTERED NON-COMPETITOR EVENTS TO ANALYZE:
+FILTERED NON-COMPETITOR FUTURE EVENTS TO ANALYZE:
 ${JSON.stringify(filteredEvents)}`;
 
       const enhancedResponse = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -464,7 +563,7 @@ ${JSON.stringify(filteredEvents)}`;
           response_format: { type: "json_object" },
           messages: [
             { role: 'system', content: enhancedAnalysisPrompt },
-            { role: 'user', content: 'Please provide enhanced analysis of these filtered events.' }
+            { role: 'user', content: 'Please provide enhanced analysis of these filtered future events.' }
           ],
           max_tokens: 4000,
           temperature: 0.1,
@@ -481,21 +580,21 @@ ${JSON.stringify(filteredEvents)}`;
       const finalEvents: FilteredEvent[] = enhancedResult.events || [];
 
       console.log(`🎯 FINAL ANALYSIS RESULTS:`);
-      console.log(`   Enhanced events: ${finalEvents.length}`);
+      console.log(`   Enhanced future events: ${finalEvents.length}`);
       
       // Log event details
       finalEvents.forEach((event, index) => {
-        console.log(`   ${index + 1}. ${event.event_name} (Score: ${event.relevance_score}/10, ${event.source_region})`);
+        console.log(`   ${index + 1}. ${event.event_name} (Score: ${event.relevance_score}/10, ${event.event_date}, ${event.source_region})`);
         if (event.event_url) {
           console.log(`      URL: ${event.event_url}`);
         }
       });
 
       if (finalEvents.length === 0) {
-        console.log('ℹ️ No events passed final enhanced analysis');
+        console.log('ℹ️ No future events passed final enhanced analysis');
         return new Response(JSON.stringify({ 
           success: true,
-          message: "Analysis completed - no events met final quality standards",
+          message: "Analysis completed - no future events met final quality standards",
           events_before_filtering: allPotentialEvents.length,
           events_after_gatekeeper: filteredEvents.length,
           events_final: 0,
@@ -505,8 +604,8 @@ ${JSON.stringify(filteredEvents)}`;
         });
       }
 
-      // --- Step 4: Create Research Briefs for Final Events ---
-      console.log('📝 Creating research briefs for final filtered events...');
+      // --- Step 4: Create Research Briefs for Final Future Events (NO AUTOMATIC CONTENT GENERATION) ---
+      console.log('📝 Creating research briefs for final filtered future events (NO automatic content generation)...');
       
       const { data: wineries, error: wineriesError } = await supabase
         .from('winery_profiles')
@@ -517,10 +616,10 @@ ${JSON.stringify(filteredEvents)}`;
       }
 
       if (!wineries || wineries.length === 0) {
-        console.log('ℹ️ No wineries found to generate content for');
+        console.log('ℹ️ No wineries found to generate briefs for');
         return new Response(JSON.stringify({ 
           success: true,
-          message: "Events found but no wineries to generate content for",
+          message: "Future events found but no wineries to generate briefs for",
           events_found: finalEvents.length,
           events: finalEvents.map(e => ({ 
             name: e.event_name, 
@@ -534,24 +633,23 @@ ${JSON.stringify(filteredEvents)}`;
         });
       }
 
-      console.log(`🎯 Generating content for ${wineries.length} wineries across ${finalEvents.length} filtered events`);
+      console.log(`🎯 Creating research briefs for ${wineries.length} wineries across ${finalEvents.length} filtered future events`);
 
-      let contentGeneratedCount = 0;
       let briefsCreatedCount = 0;
 
-      // For each final event, create content for each winery
+      // For each final future event, create research briefs for each winery (NO CONTENT GENERATION)
       for (const event of finalEvents) {
-        console.log(`📅 Processing filtered event: ${event.event_name} (${event.source_region})`);
+        console.log(`📅 Processing filtered future event: ${event.event_name} (${event.event_date}, ${event.source_region})`);
         
         for (const winery of wineries) {
           try {
-            // Create a research brief specific to this winery and filtered event
+            // Create a research brief specific to this winery and filtered future event
             const wineryBrief = {
               winery_id: winery.id,
-              suggested_theme: `Local Event Opportunity: ${event.event_name}`,
+              suggested_theme: `Future Event Opportunity: ${event.event_name}`,
               key_points: [
                 `Event: ${event.event_name}`,
-                `Date: ${event.event_date || 'Date TBD'}`,
+                `Date: ${event.event_date}`,
                 `Location: ${event.event_location}`,
                 `Summary: ${event.event_summary}`,
                 `Event URL: ${event.event_url}`,
@@ -560,12 +658,13 @@ ${JSON.stringify(filteredEvents)}`;
                 `Region: ${event.source_region}`,
                 `Discovered: ${new Date().toLocaleDateString()}`,
                 `Data Source: Two-step AI filtered scan (Gatekeeper approved)`,
-                `Status: Non-competitor event - safe for marketing`
+                `Status: Non-competitor future event - safe for marketing`,
+                `Time Frame: Next 3 months`
               ],
               local_event_name: event.event_name,
               local_event_date: event.event_date ? new Date(event.event_date).toISOString() : null,
               local_event_location: event.event_location,
-              seasonal_context: `REAL NON-COMPETITOR EVENT discovered by comprehensive Event Engine with AI Gatekeeper filtering. ${event.event_summary} This is a verified non-competitive opportunity for ${winery.winery_name} to engage with the local wine community and create relevant marketing content. Event details and registration: ${event.event_url}`
+              seasonal_context: `REAL NON-COMPETITOR FUTURE EVENT discovered by comprehensive Event Engine with AI Gatekeeper filtering. ${event.event_summary} This is a verified non-competitive opportunity happening ${event.event_date} for ${winery.winery_name} to engage with the local wine community and create relevant marketing content. Event details and registration: ${event.event_url}`
             };
 
             const { data: newBrief, error: briefError } = await supabase
@@ -580,33 +679,10 @@ ${JSON.stringify(filteredEvents)}`;
             }
 
             briefsCreatedCount++;
-
-            // Generate content based on this filtered event
-            const contentRequest = {
-              content_type: 'social_media',
-              primary_topic: `Local event opportunity: ${event.event_name}`,
-              key_talking_points: `${event.event_summary} Event details: ${event.event_date || 'Date TBD'} at ${event.event_location}. This is a verified non-competitor opportunity happening in ${event.source_region} for ${winery.winery_name} to connect with the local wine community. Learn more and register: ${event.event_url}`,
-              call_to_action: `Join us and discover exceptional wines at this exciting local event! Details and registration: ${event.event_url}`
-            };
-
-            // Call the generate-content function
-            const { error: contentError } = await supabase.functions.invoke('generate-content', {
-              body: {
-                winery_id: winery.id,
-                content_request: contentRequest,
-                research_brief_id: newBrief.id
-              }
-            });
-
-            if (contentError) {
-              console.error(`Failed to generate content for ${winery.winery_name}:`, contentError);
-            } else {
-              contentGeneratedCount++;
-              console.log(`✅ Generated content for ${winery.winery_name} - ${event.event_name}`);
-            }
+            console.log(`✅ Created research brief for ${winery.winery_name} - ${event.event_name}`);
 
             // Small delay to avoid overwhelming the system
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise(resolve => setTimeout(resolve, 50));
 
           } catch (error) {
             console.error(`Error processing ${event.event_name} for ${winery.winery_name}:`, error);
@@ -614,32 +690,34 @@ ${JSON.stringify(filteredEvents)}`;
         }
       }
 
-      console.log(`🎉 COMPREHENSIVE Event Engine with AI Gatekeeper completed successfully!`);
+      console.log(`🎉 COMPREHENSIVE Future Event Engine with AI Gatekeeper completed successfully!`);
       console.log(`📊 FINAL RESULTS:`);
       console.log(`   Sources fetched: ${successfulScrapes.length}/${EVENT_SOURCES.length}`);
-      console.log(`   Events extracted: ${allPotentialEvents.length}`);
-      console.log(`   Events after gatekeeper: ${filteredEvents.length}`);
+      console.log(`   Future events extracted: ${allPotentialEvents.length}`);
+      console.log(`   Future events after gatekeeper: ${filteredEvents.length}`);
       console.log(`   Competitor events filtered: ${allPotentialEvents.length - filteredEvents.length}`);
-      console.log(`   Final events processed: ${finalEvents.length}`);
-      console.log(`   Briefs created: ${briefsCreatedCount}`);
-      console.log(`   Content generated: ${contentGeneratedCount}`);
+      console.log(`   Final future events processed: ${finalEvents.length}`);
+      console.log(`   Research briefs created: ${briefsCreatedCount}`);
+      console.log(`   Content generation: DISABLED (user selection required)`);
 
       return new Response(JSON.stringify({
         success: true,
-        message: `Two-step AI analysis: processed ${finalEvents.length} non-competitor events from ${successfulScrapes.length} sources for ${wineries.length} wineries`,
-        data_source: 'two_step_ai_filtered_scan',
+        message: `Two-step AI analysis: processed ${finalEvents.length} non-competitor FUTURE events from ${successfulScrapes.length} sources for ${wineries.length} wineries`,
+        data_source: 'two_step_ai_filtered_future_scan',
         events_extracted: allPotentialEvents.length,
         events_after_gatekeeper: filteredEvents.length,
         competitor_events_filtered: allPotentialEvents.length - filteredEvents.length,
         events_final: finalEvents.length,
         wineries_processed: wineries.length,
         briefs_created: briefsCreatedCount,
-        content_generated: contentGeneratedCount,
+        content_generated: 0, // No automatic content generation
+        automatic_content_generation: false,
         scraped_sources: successfulScrapes.length,
         rss_sources_successful: successfulRSS.length,
         html_sources_successful: successfulHTML.length,
         total_sources: EVENT_SOURCES.length,
         coverage_regions: [...new Set(successfulScrapes.map(s => s.region))],
+        time_frame: 'next_3_months',
         events: finalEvents.map(e => ({ 
           name: e.event_name, 
           date: e.event_date, 
@@ -647,6 +725,13 @@ ${JSON.stringify(filteredEvents)}`;
           relevance: e.relevance_score,
           source: e.source_region,
           url: e.event_url
+        })),
+        source_performance: successfulScrapes.map(s => ({
+          name: s.name,
+          type: s.type,
+          priority: s.priority,
+          events_found: s.events_extracted?.length || 0,
+          region: s.region
         }))
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -680,10 +765,10 @@ ${JSON.stringify(filteredEvents)}`;
   }
 });
 
-// Enhanced RSS event extraction with structured data
+// Enhanced RSS event extraction with future date filtering
 function extractRSSEvents(rssXml: string, source: any): { events: PotentialEvent[], text: string } {
   try {
-    console.log(`📰 Processing RSS feed from ${source.name} (${source.region})`);
+    console.log(`📰 Processing RSS feed from ${source.name} (${source.region}) for FUTURE events`);
     
     // Extract RSS items using regex (simple XML parsing)
     const itemMatches = rssXml.match(/<item[^>]*>[\s\S]*?<\/item>/gi) || [];
@@ -692,7 +777,7 @@ function extractRSSEvents(rssXml: string, source: any): { events: PotentialEvent
     let extractedText = `RSS Feed from ${source.name} (${source.region})\nFeed URL: ${source.url}\n\n`;
     
     itemMatches.forEach((item, index) => {
-      if (index >= 50) return; // Limit to first 50 items for comprehensive coverage
+      if (index >= 100) return; // Limit to first 100 items for comprehensive coverage
       
       // Extract title
       const titleMatch = item.match(/<title[^>]*><!\[CDATA\[(.*?)\]\]><\/title>|<title[^>]*>(.*?)<\/title>/i);
@@ -715,26 +800,36 @@ function extractRSSEvents(rssXml: string, source: any): { events: PotentialEvent
       const cleanDescription = description.replace(/<[^>]*>/g, '').replace(/&[^;]+;/g, ' ').trim();
       
       if (cleanTitle) {
-        events.push({
+        // Try to extract event date
+        const eventDate = extractEventDate(cleanTitle, cleanDescription, pubDate);
+        
+        const event: PotentialEvent = {
           title: cleanTitle,
           description: cleanDescription,
           link: link || source.url,
           published: pubDate,
           source_name: source.name,
-          source_region: source.region
-        });
+          source_region: source.region,
+          event_date: eventDate || undefined
+        };
         
-        extractedText += `EVENT: ${cleanTitle}\n`;
-        if (pubDate) extractedText += `DATE: ${pubDate}\n`;
-        if (link) extractedText += `URL: ${link}\n`;
-        if (cleanDescription) extractedText += `DESCRIPTION: ${cleanDescription}\n`;
-        extractedText += `SOURCE: ${source.name} RSS Feed\n`;
-        extractedText += `REGION: ${source.region}\n`;
-        extractedText += `---\n\n`;
+        // Only include if it's a future event or if we can't determine the date
+        if (!eventDate || isEventInFuture(eventDate)) {
+          events.push(event);
+          
+          extractedText += `EVENT: ${cleanTitle}\n`;
+          if (eventDate) extractedText += `EVENT DATE: ${eventDate}\n`;
+          if (pubDate) extractedText += `PUBLISHED: ${pubDate}\n`;
+          if (link) extractedText += `URL: ${link}\n`;
+          if (cleanDescription) extractedText += `DESCRIPTION: ${cleanDescription}\n`;
+          extractedText += `SOURCE: ${source.name} RSS Feed\n`;
+          extractedText += `REGION: ${source.region}\n`;
+          extractedText += `---\n\n`;
+        }
       }
     });
     
-    console.log(`✅ Extracted ${events.length} structured events from ${source.name} RSS`);
+    console.log(`✅ Extracted ${events.length} future events from ${source.name} RSS`);
     return { events, text: extractedText };
     
   } catch (error) {
@@ -743,10 +838,10 @@ function extractRSSEvents(rssXml: string, source: any): { events: PotentialEvent
   }
 }
 
-// Enhanced HTML event extraction with structured data
+// Enhanced HTML event extraction with future date filtering
 function extractHTMLEvents(html: string, source: any): { events: PotentialEvent[], text: string } {
   try {
-    console.log(`🌐 Processing HTML from ${source.name} (${source.region})`);
+    console.log(`🌐 Processing HTML from ${source.name} (${source.region}) for FUTURE events`);
     
     // Remove script and style tags
     let cleaned = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
@@ -769,17 +864,26 @@ function extractHTMLEvents(html: string, source: any): { events: PotentialEvent[
     
     eventPatterns.forEach(pattern => {
       let match;
-      while ((match = pattern.exec(html)) !== null && events.length < 20) {
+      while ((match = pattern.exec(html)) !== null && events.length < 30) {
         const eventText = match[1].trim();
         if (eventText.length > 10 && eventText.length < 200) {
-          events.push({
+          // Try to extract date from the event text
+          const eventDate = extractEventDate(eventText, '', '');
+          
+          const event: PotentialEvent = {
             title: eventText,
             description: `Event found on ${source.name}`,
             link: source.url,
             published: new Date().toISOString(),
             source_name: source.name,
-            source_region: source.region
-          });
+            source_region: source.region,
+            event_date: eventDate || undefined
+          };
+          
+          // Only include if it's a future event or if we can't determine the date
+          if (!eventDate || isEventInFuture(eventDate)) {
+            events.push(event);
+          }
         }
       }
     });
@@ -789,20 +893,20 @@ function extractHTMLEvents(html: string, source: any): { events: PotentialEvent[
     
     // Decode HTML entities
     cleaned = cleaned.replace(/&nbsp;/g, ' ');
-    cleaned = cleaned.replace(/&amp;/g, '&');
-    cleaned = cleaned.replace(/&lt;/g, '<');
-    cleaned = cleaned.replace(/&gt;/g, '>');
-    cleaned = cleaned.replace(/&quot;/g, '"');
+    cleaned = cleaned.replace(/&/g, '&');
+    cleaned = cleaned.replace(/</g, '<');
+    cleaned = cleaned.replace(/>/g, '>');
+    cleaned = cleaned.replace(/"/g, '"');
     cleaned = cleaned.replace(/&#39;/g, "'");
     
     // Clean up whitespace
     cleaned = cleaned.replace(/\s+/g, ' ').trim();
     
-    // Filter for event-related content
+    // Filter for event-related content with future dates
     const eventKeywords = [
       'event', 'festival', 'tasting', 'wine', 'vineyard', 'celebration', 'concert', 'market', 'tour', 'dinner',
       'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december',
-      '2024', '2025', 'weekend', 'saturday', 'sunday'
+      '2024', '2025', 'weekend', 'saturday', 'sunday', 'upcoming', 'coming', 'next'
     ];
     
     const sentences = cleaned.split(/[.!?]+/);
@@ -812,9 +916,9 @@ function extractHTMLEvents(html: string, source: any): { events: PotentialEvent[
       return keywordCount >= 2 && sentence.length > 30 && sentence.length < 300;
     });
     
-    const extractedText = relevantSentences.slice(0, 100).join('. ') + '.';
+    const extractedText = relevantSentences.slice(0, 50).join('. ') + '.';
     
-    console.log(`✅ Extracted ${events.length} potential events from ${source.name} HTML`);
+    console.log(`✅ Extracted ${events.length} potential future events from ${source.name} HTML`);
     return { events, text: extractedText };
     
   } catch (error) {
