@@ -111,21 +111,20 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
         .eq('winery_id', wineryProfile.id)
         .not('research_brief_id', 'is', null);
 
-      // Get last scan time (approximate)
-      const { data: lastBrief } = await supabase
+      // Get last scan time (approximate) - Fixed: removed .single() and safely access array
+      const { data: lastBriefs } = await supabase
         .from('research_briefs')
         .select('created_at')
         .eq('winery_id', wineryProfile.id)
         .not('local_event_name', 'is', null)
         .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+        .limit(1);
 
       setStats({
         totalEvents: totalEvents || 0,
         thisWeekEvents: thisWeekEvents || 0,
         contentGenerated: contentGenerated || 0,
-        lastScan: lastBrief?.created_at || null
+        lastScan: lastBriefs?.[0]?.created_at || null
       });
     } catch (error) {
       console.error('Error fetching stats:', error);
