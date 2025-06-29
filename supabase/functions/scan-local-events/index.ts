@@ -268,11 +268,12 @@ Respond ONLY with a valid JSON object containing a single key "events", which is
               call_to_action: 'Join us and discover exceptional wines!'
             };
 
-            // Call the generate-content function
+            // Call the generate-content function with research_brief_id
             const { error: contentError } = await supabase.functions.invoke('generate-content', {
               body: {
                 winery_id: winery.id,
-                content_request: contentRequest
+                content_request: contentRequest,
+                research_brief_id: newBrief.id
               }
             });
 
@@ -400,7 +401,7 @@ async function generateDemoEvents(supabase: any) {
         if (!briefError) {
           briefsCreatedCount++;
 
-          // Generate content
+          // Generate content with research_brief_id
           const { error: contentError } = await supabase.functions.invoke('generate-content', {
             body: {
               winery_id: winery.id,
@@ -409,7 +410,8 @@ async function generateDemoEvents(supabase: any) {
                 primary_topic: `Upcoming local event: ${event.event_name}`,
                 key_talking_points: `${event.event_summary} Event details: ${new Date(event.event_date).toLocaleDateString()} at ${event.event_location}.`,
                 call_to_action: 'Join us and discover exceptional wines!'
-              }
+              },
+              research_brief_id: newBrief.id
             }
           });
 

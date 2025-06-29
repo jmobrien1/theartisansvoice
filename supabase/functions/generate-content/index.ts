@@ -36,6 +36,7 @@ interface ContentRequest {
 interface RequestPayload {
   winery_id: string;
   content_request: ContentRequest;
+  research_brief_id?: string;
   test?: boolean;
 }
 
@@ -173,7 +174,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const { winery_id, content_request, test }: RequestPayload = await req.json();
+    const { winery_id, content_request, research_brief_id, test }: RequestPayload = await req.json();
 
     // Handle test requests
     if (test) {
@@ -333,6 +334,7 @@ ${content_request.call_to_action ? `<p><strong>${content_request.call_to_action}
           content: generatedContent,
           content_type: content_request.content_type,
           status: 'draft',
+          research_brief_id: research_brief_id,
           created_by: null // Will be set by RLS
         }])
         .select()
@@ -434,6 +436,7 @@ ${content_request.call_to_action ? `<p><strong>${content_request.call_to_action}
           content: generatedContent,
           content_type: content_request.content_type,
           status: 'draft',
+          research_brief_id: research_brief_id,
           created_by: null // Will be set by RLS
         }])
         .select()

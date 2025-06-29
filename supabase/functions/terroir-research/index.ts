@@ -194,6 +194,7 @@ ${winery_profile.backstory ? `<p>${winery_profile.backstory}</p>` : ''}
         content: contentBody,
         content_type: 'blog_post',
         status: 'draft',
+        research_brief_id: briefData.id,
         created_by: null // Will be set by RLS
       }])
       .select()
