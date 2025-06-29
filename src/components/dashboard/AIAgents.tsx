@@ -21,8 +21,8 @@ interface AIAgentsProps {
 const agents = [
   {
     id: 'terroir-research',
-    name: 'Terroir Research Agent',
-    description: 'Discovers local events, seasonal trends, and regional wine topics',
+    name: 'Research Agent',
+    description: 'Discovers local events, seasonal trends, and regional topics',
     icon: Search,
     color: 'from-blue-500 to-blue-600',
     bgColor: 'bg-blue-50',
@@ -30,7 +30,7 @@ const agents = [
   },
   {
     id: 'vintage-strategist',
-    name: 'Vintage Strategist Agent',
+    name: 'Strategy Agent',
     description: 'Creates comprehensive content strategies and editorial calendars',
     icon: Target,
     color: 'from-purple-500 to-purple-600',
@@ -39,8 +39,8 @@ const agents = [
   },
   {
     id: 'sommelier-writer',
-    name: 'Sommelier Writing Agent',
-    description: 'Generates engaging wine content with your unique brand voice',
+    name: 'Writing Agent',
+    description: 'Generates engaging content with your unique brand voice',
     icon: PenTool,
     color: 'from-amber-500 to-amber-600',
     bgColor: 'bg-amber-50',
@@ -48,7 +48,7 @@ const agents = [
   },
   {
     id: 'cellar-master',
-    name: 'Cellar Master Publishing Agent',
+    name: 'Publishing Agent',
     description: 'Automatically publishes content to your WordPress website',
     icon: Send,
     color: 'from-green-500 to-green-600',
@@ -326,7 +326,7 @@ export function AIAgents({ wineryProfile }: AIAgentsProps) {
               <p>• Messaging style and communication approach</p>
               <p>• Preferred vocabulary and words to avoid</p>
               <p>• Specific AI writing guidelines</p>
-              <p>• Winery backstory and context</p>
+              <p>• Business backstory and context</p>
             </div>
           </div>
           
@@ -348,7 +348,7 @@ export function AIAgents({ wineryProfile }: AIAgentsProps) {
         <div className="mt-6 p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg border border-amber-200">
           <p className="text-sm text-gray-700">
             <strong>Result:</strong> The AI combines your Brand Voice Guide with your specific Content Request to create 
-            incredibly detailed, personalized content that sounds authentically like your winery every single time.
+            incredibly detailed, personalized content that sounds authentically like your business every single time.
           </p>
         </div>
       </motion.div>

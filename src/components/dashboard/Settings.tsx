@@ -123,21 +123,21 @@ export function Settings({ wineryProfile, onProfileUpdate }: SettingsProps) {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-600">Manage your winery profile and brand voice</p>
+        <p className="text-gray-600">Manage your business profile and brand voice</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Winery Profile */}
+        {/* Business Profile */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           className="bg-white rounded-xl border border-gray-200 p-6"
         >
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Winery Profile</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Business Profile</h3>
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Winery Name
+                Business Name
               </label>
               <input
                 type="text"
@@ -174,16 +174,16 @@ export function Settings({ wineryProfile, onProfileUpdate }: SettingsProps) {
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Wine Types
+                Product Types
               </label>
               <input
                 type="text"
                 value={formData.wine_types}
                 onChange={(e) => setFormData(prev => ({ ...prev, wine_types: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                placeholder="Cabernet Sauvignon, Chardonnay, Pinot Noir"
+                placeholder="Wine, Beer, Spirits, Artisan Foods"
               />
-              <p className="text-xs text-gray-500 mt-1">Separate multiple wines with commas</p>
+              <p className="text-xs text-gray-500 mt-1">Separate multiple products with commas</p>
             </div>
           </div>
         </motion.div>
@@ -205,7 +205,7 @@ export function Settings({ wineryProfile, onProfileUpdate }: SettingsProps) {
                 onChange={(e) => setFormData(prev => ({ ...prev, brand_personality_summary: e.target.value }))}
                 rows={3}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                placeholder="Describe your winery's personality and character..."
+                placeholder="Describe your brand's personality and character..."
               />
             </div>
             
@@ -303,14 +303,14 @@ export function Settings({ wineryProfile, onProfileUpdate }: SettingsProps) {
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Backstory
+                Business Story
               </label>
               <textarea
                 value={formData.backstory}
                 onChange={(e) => setFormData(prev => ({ ...prev, backstory: e.target.value }))}
                 rows={4}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                placeholder="Tell your winery's unique story..."
+                placeholder="Tell your business's unique story..."
               />
             </div>
             
@@ -378,7 +378,7 @@ export function Settings({ wineryProfile, onProfileUpdate }: SettingsProps) {
                 value={formData.wordpress_url}
                 onChange={(e) => setFormData(prev => ({ ...prev, wordpress_url: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                placeholder="https://yourwinery.com"
+                placeholder="https://yourbusiness.com"
               />
             </div>
             

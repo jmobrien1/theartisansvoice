@@ -60,7 +60,7 @@ export function ConnectionTest() {
               Supabase Connection Test
             </h1>
             <p className="text-gray-600">
-              Verifying your Winery Content Engine setup
+              Verifying your Craft Amplify setup
             </p>
           </div>
 
@@ -153,8 +153,8 @@ export function ConnectionTest() {
                 <div className="mt-8 bg-green-50 border border-green-200 rounded-lg p-6">
                   <h3 className="font-semibold text-green-800 mb-3">🎉 All Systems Ready!</h3>
                   <p className="text-green-700">
-                    Your Winery Content Engine is properly configured and ready to use.
-                    You can now create your winery account and start generating content!
+                    Your Craft Amplify platform is properly configured and ready to use.
+                    You can now create your business account and start generating content!
                   </p>
                 </div>
               )}

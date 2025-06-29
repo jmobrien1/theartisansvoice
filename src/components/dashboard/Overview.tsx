@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  FileText, 
-  Calendar, 
   TrendingUp, 
-  Clock,
+  Eye, 
+  MousePointer, 
+  Users,
+  Calendar,
+  FileText,
+  BarChart3,
+  PieChart,
   CheckCircle,
   AlertCircle,
   Sparkles,
-  BarChart3,
-  Zap
+  Zap,
+  Clock
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -77,7 +81,14 @@ export function Overview({ wineryProfile, onSectionChange }: OverviewProps) {
       // Fetch recent content
       const { data: recentData, error: recentError } = await supabase
         .from('content_calendar')
-        .select('*')
+        .select(`
+          id,
+          title,
+          content_type,
+          status,
+          created_at,
+          research_brief_id
+        `)
         .eq('winery_id', wineryProfile.id)
         .order('created_at', { ascending: false })
         .limit(5);
@@ -183,10 +194,10 @@ export function Overview({ wineryProfile, onSectionChange }: OverviewProps) {
         className="bg-gradient-to-r from-amber-500 to-orange-600 rounded-xl p-6 text-white"
       >
         <h1 className="text-2xl font-bold mb-2">
-          Welcome back, {wineryProfile?.owner_name || 'Winemaker'}!
+          Welcome back, {wineryProfile?.owner_name || 'Craft Creator'}!
         </h1>
         <p className="text-amber-100">
-          Your {wineryProfile?.winery_name} content engine is ready to help you tell your story.
+          Your {wineryProfile?.winery_name || 'craft business'} content engine is ready to help you tell your story.
         </p>
         {stats.proactiveContent > 0 && (
           <div className="mt-3 flex items-center space-x-2">

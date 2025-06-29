@@ -42,7 +42,7 @@ export function LoginForm() {
             {isSignUp ? 'Create your account' : 'Sign in to your account'}
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Winery Content Engine
+            Craft Amplify
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>

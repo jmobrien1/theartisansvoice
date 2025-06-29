@@ -42,7 +42,7 @@ export function Sidebar({ activeSection, onSectionChange, wineryProfile, isOpen,
           </div>
           <div>
             <h2 className="text-lg font-semibold text-gray-900">
-              {wineryProfile?.winery_name || 'Winery'}
+              {wineryProfile?.winery_name || 'Craft Amplify'}
             </h2>
             <p className="text-sm text-gray-500">Content Engine</p>
           </div>
@@ -93,7 +93,7 @@ export function Sidebar({ activeSection, onSectionChange, wineryProfile, isOpen,
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
                 <span className="text-white font-semibold text-sm">
-                  {wineryProfile.winery_name?.charAt(0) || 'W'}
+                  {wineryProfile.winery_name?.charAt(0) || 'C'}
                 </span>
               </div>
               <div className="flex-1 min-w-0">

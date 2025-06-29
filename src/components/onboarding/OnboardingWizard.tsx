@@ -7,10 +7,10 @@ import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
 const steps = [
-  { id: 1, title: 'Winery Details', description: 'Tell us about your winery' },
+  { id: 1, title: 'Business Details', description: 'Tell us about your craft business' },
   { id: 2, title: 'Brand Voice', description: 'Define your unique voice and personality' },
   { id: 3, title: 'Messaging Style', description: 'How you communicate with customers' },
-  { id: 4, title: 'Products & Audience', description: 'Your wines and customers' },
+  { id: 4, title: 'Products & Audience', description: 'Your offerings and customers' },
   { id: 5, title: 'Content Goals', description: 'Set your publishing targets' },
   { id: 6, title: 'WordPress Integration', description: 'Connect your website (optional)' }
 ];
@@ -110,10 +110,10 @@ export function OnboardingWizard() {
 
       if (error) throw error;
 
-      toast.success('Welcome to your Winery Content Engine!');
+      toast.success('Welcome to Craft Amplify!');
       navigate('/');
     } catch (error) {
-      console.error('Error creating winery profile:', error);
+      console.error('Error creating business profile:', error);
       toast.error('Failed to complete setup. Please try again.');
     } finally {
       setLoading(false);
@@ -146,14 +146,14 @@ export function OnboardingWizard() {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Winery Name *
+                Business Name *
               </label>
               <input
                 type="text"
                 value={formData.winery_name}
                 onChange={(e) => setFormData(prev => ({ ...prev, winery_name: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                placeholder="Enter your winery name"
+                placeholder="Enter your business name"
               />
             </div>
             <div>
@@ -256,7 +256,7 @@ export function OnboardingWizard() {
                   onChange={(e) => setFormData(prev => ({ ...prev, brand_personality_summary: e.target.value }))}
                   rows={4}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                  placeholder="Describe your winery's personality. Are you sophisticated and elegant? Approachable and friendly? Traditional and heritage-focused? Modern and innovative?"
+                  placeholder="Describe your brand's personality. Are you sophisticated and elegant? Approachable and friendly? Traditional and heritage-focused? Modern and innovative?"
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   {formData.brand_personality_summary.length}/50 characters minimum
@@ -311,7 +311,7 @@ export function OnboardingWizard() {
                 onChange={(e) => setFormData(prev => ({ ...prev, vocabulary_to_use: e.target.value }))}
                 rows={3}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                placeholder="List words and phrases that represent your brand well (e.g., 'crafted', 'artisanal', 'terroir', 'heritage')"
+                placeholder="List words and phrases that represent your brand well (e.g., 'crafted', 'artisanal', 'heritage', 'terroir')"
               />
             </div>
             <div>
@@ -349,14 +349,14 @@ export function OnboardingWizard() {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Your Winery's Story * (minimum 50 characters)
+                Your Business Story * (minimum 50 characters)
               </label>
               <textarea
                 value={formData.backstory}
                 onChange={(e) => setFormData(prev => ({ ...prev, backstory: e.target.value }))}
                 rows={4}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                placeholder="Tell us about your winery's history, philosophy, and what makes you unique..."
+                placeholder="Tell us about your business history, philosophy, and what makes you unique..."
               />
               <p className="text-xs text-gray-500 mt-1">
                 {formData.backstory.length}/50 characters minimum
@@ -364,34 +364,34 @@ export function OnboardingWizard() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Wine Types * (select all that apply)
+                Product Types * (select all that apply)
               </label>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  'Cabernet Sauvignon', 'Chardonnay', 'Pinot Noir', 'Merlot',
-                  'Sauvignon Blanc', 'Pinot Grigio', 'Riesling', 'Syrah',
-                  'Zinfandel', 'Sangiovese', 'Tempranillo', 'Other'
-                ].map((wine) => (
-                  <label key={wine} className="flex items-center">
+                  'Wine', 'Beer', 'Spirits', 'Cider',
+                  'Mead', 'Kombucha', 'Coffee', 'Tea',
+                  'Artisan Foods', 'Craft Goods', 'Other'
+                ].map((product) => (
+                  <label key={product} className="flex items-center">
                     <input
                       type="checkbox"
-                      checked={formData.wine_types.includes(wine)}
+                      checked={formData.wine_types.includes(product)}
                       onChange={(e) => {
                         if (e.target.checked) {
                           setFormData(prev => ({
                             ...prev,
-                            wine_types: [...prev.wine_types, wine]
+                            wine_types: [...prev.wine_types, product]
                           }));
                         } else {
                           setFormData(prev => ({
                             ...prev,
-                            wine_types: prev.wine_types.filter(w => w !== wine)
+                            wine_types: prev.wine_types.filter(w => w !== product)
                           }));
                         }
                       }}
                       className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
                     />
-                    <span className="ml-2 text-sm text-gray-700">{wine}</span>
+                    <span className="ml-2 text-sm text-gray-700">{product}</span>
                   </label>
                 ))}
               </div>
@@ -405,7 +405,7 @@ export function OnboardingWizard() {
                 onChange={(e) => setFormData(prev => ({ ...prev, target_audience: e.target.value }))}
                 rows={3}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                placeholder="Describe your ideal customers (age, interests, wine knowledge level, etc.)"
+                placeholder="Describe your ideal customers (age, interests, knowledge level, etc.)"
               />
             </div>
           </div>
@@ -463,7 +463,7 @@ export function OnboardingWizard() {
                 value={formData.wordpress_url}
                 onChange={(e) => setFormData(prev => ({ ...prev, wordpress_url: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                placeholder="https://yourwinery.com"
+                placeholder="https://yourbusiness.com"
               />
             </div>
             <div>
