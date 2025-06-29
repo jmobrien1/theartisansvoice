@@ -80,7 +80,8 @@ export function OnboardingWizard() {
       case 4:
         return formData.content_goals >= 1;
       case 5:
-        return true; // WordPress integration is optional
+        // WordPress integration is optional - always return true
+        return true;
       default:
         return false;
     }
@@ -380,7 +381,7 @@ export function OnboardingWizard() {
             ) : (
               <button
                 onClick={handleComplete}
-                disabled={loading || !isStepValid(currentStep)}
+                disabled={loading}
                 className="flex items-center px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Setting up...' : 'Complete Setup'}
