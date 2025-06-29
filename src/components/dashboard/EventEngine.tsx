@@ -18,7 +18,8 @@ import {
   EyeOff,
   X,
   Settings,
-  Save
+  Save,
+  ExternalLink
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
@@ -37,6 +38,7 @@ interface ProactiveEvent {
   created_at: string;
   content_count: number;
   key_points: string[];
+  event_url?: string;
 }
 
 interface ScheduleSettings {
@@ -97,10 +99,28 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
 
       if (error) throw error;
 
-      const eventsWithCount = data?.map(event => ({
-        ...event,
-        content_count: event.content_calendar?.[0]?.count || 0
-      })) || [];
+      const eventsWithCount = data?.map(event => {
+        // Extract event URL from key_points or seasonal_context
+        let eventUrl = '';
+        if (event.key_points) {
+          const urlPoint = event.key_points.find((point: string) => point.includes('Event URL:'));
+          if (urlPoint) {
+            eventUrl = urlPoint.replace('Event URL:', '').trim();
+          }
+        }
+        if (!eventUrl && event.seasonal_context) {
+          const urlMatch = event.seasonal_context.match(/https?:\/\/[^\s]+/);
+          if (urlMatch) {
+            eventUrl = urlMatch[0];
+          }
+        }
+
+        return {
+          ...event,
+          content_count: event.content_calendar?.[0]?.count || 0,
+          event_url: eventUrl
+        };
+      }) || [];
 
       setEvents(eventsWithCount);
     } catch (error) {
@@ -375,7 +395,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
           <div>
             <h3 className="font-semibold text-gray-900">🤖 Real Event Discovery Engine</h3>
             <p className="text-sm text-gray-600">
-              AI scrapes actual local event websites and creates relevant content opportunities from REAL data
+              AI scrapes RSS feeds and event websites, then creates relevant content opportunities from REAL data
             </p>
           </div>
         </div>
@@ -386,8 +406,8 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
               <span className="text-blue-600 font-semibold text-xs">1</span>
             </div>
             <div>
-              <p className="font-medium text-gray-900">Real Web Scraping</p>
-              <p className="text-gray-600">Scrapes curated local tourism and wine event websites for actual events</p>
+              <p className="font-medium text-gray-900">RSS + Web Scraping</p>
+              <p className="text-gray-600">Fetches structured RSS feeds and scrapes curated tourism websites for actual events</p>
             </div>
           </div>
           
@@ -407,7 +427,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
             </div>
             <div>
               <p className="font-medium text-gray-900">Content Creation</p>
-              <p className="text-gray-600">Generates draft content for each real discovered event</p>
+              <p className="text-gray-600">Generates draft content for each real discovered event with links</p>
             </div>
           </div>
         </div>
@@ -517,6 +537,18 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
                       <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
                         REAL EVENT
                       </span>
+                      {event.event_url && (
+                        <a
+                          href={event.event_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center text-blue-600 hover:text-blue-800 text-xs"
+                          title="Visit event page"
+                        >
+                          <ExternalLink className="h-3 w-3 mr-1" />
+                          Visit Event
+                        </a>
+                      )}
                     </div>
                     
                     <div className="flex items-center space-x-4 text-sm text-gray-600 mb-2">
@@ -572,6 +604,17 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
                       
                       {activeDropdown === event.id && (
                         <div className="absolute right-0 top-6 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[120px]">
+                          {event.event_url && (
+                            <a
+                              href={event.event_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="w-full px-3 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 flex items-center"
+                            >
+                              <ExternalLink className="h-3 w-3 mr-2" />
+                              Visit Event
+                            </a>
+                          )}
                           <button
                             onClick={() => openDeleteModal(event)}
                             className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center"
@@ -616,7 +659,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
                 {scheduleSettings.enabled ? (
                   <>
                     Automatically scans for real events every {getDayName(scheduleSettings.day_of_week)} at {formatTime(scheduleSettings.hour)} ({scheduleSettings.timezone}).
-                    When relevant events are found, draft content is automatically created.
+                    When relevant events are found, draft content is automatically created with event links.
                   </>
                 ) : (
                   'Automatic scanning is currently disabled. Use manual scan or enable scheduling.'

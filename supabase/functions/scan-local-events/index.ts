@@ -1,23 +1,23 @@
 /*
-  # Real Event Engine - Production Implementation
+  # Real Event Engine - RSS Feed Implementation
 
   1. Purpose
-    - Scrapes REAL local event websites for opportunities
-    - Uses AI to identify wine/tourism-related events from actual data
-    - NO MORE DEMO DATA - only real scraped content
+    - Uses RSS feeds for reliable, structured event data
+    - Provides event links for users to visit for details
+    - More efficient and reliable than HTML scraping
     - Configurable scheduling system
 
   2. Functionality
-    - Scrapes curated high-value event websites
-    - AI analyzes real scraped content for relevant events
-    - Creates research briefs for discovered events
+    - Fetches RSS feeds from curated event sources
+    - AI analyzes real RSS content for relevant events
+    - Creates research briefs with event links
     - Triggers content generation for all wineries
     - Supports both scheduled and manual execution
 
-  3. Real Data Sources
-    - Curated list of reliable event websites
-    - Proper web scraping with error handling
-    - Respects rate limiting and timeouts
+  3. RSS Data Sources
+    - Visit Loudoun RSS feed (primary source)
+    - Other RSS feeds where available
+    - Fallback to HTML scraping for non-RSS sources
 */
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
@@ -28,22 +28,24 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-// CURATED HIGH-VALUE EVENT SOURCES - Optimized for reliability and relevance
+// CURATED EVENT SOURCES - RSS feeds preferred, HTML fallback
 const EVENT_SOURCES = [
-  // Category 1: High-Value Regional & Primary Targets
+  // Category 1: RSS Feeds (Preferred - Structured Data)
   {
-    url: 'https://www.visitloudoun.org/events/',
-    name: 'Visit Loudoun Events',
+    url: 'https://www.visitloudoun.org/event/rss/',
+    name: 'Visit Loudoun Events RSS',
     region: 'Loudoun County, VA',
-    type: 'tourism',
+    type: 'rss',
     priority: 'high',
-    description: '#1 source for DC Wine Country events - densely packed with winery/brewery events'
+    description: '#1 source for DC Wine Country events - RSS feed with structured data'
   },
+  
+  // Category 2: High-Value HTML Sources (Fallback)
   {
     url: 'https://www.fxva.com/events/',
     name: 'FXVA (Visit Fairfax) Events',
     region: 'Fairfax County, VA',
-    type: 'tourism',
+    type: 'html',
     priority: 'high',
     description: 'Large, affluent county with major festivals and venue events'
   },
@@ -51,17 +53,25 @@ const EVENT_SOURCES = [
     url: 'https://www.virginia.org/events/',
     name: 'Virginia is for Lovers (Official State Tourism)',
     region: 'Virginia',
-    type: 'tourism',
+    type: 'html',
     priority: 'high',
     description: 'High-level source with largest, most significant festivals and wine/beer trails'
   },
+  {
+    url: 'https://northernvirginiamag.com/events/',
+    name: 'Northern Virginia Magazine Events',
+    region: 'Northern Virginia',
+    type: 'html',
+    priority: 'high',
+    description: 'Curated high-end food, wine, and cultural events for target audience'
+  },
   
-  // Category 2: Specific County & Town Calendars
+  // Category 3: County Sources
   {
     url: 'https://www.visitpwc.com/events/',
     name: 'Prince William County Events',
     region: 'Prince William County, VA',
-    type: 'county',
+    type: 'html',
     priority: 'medium',
     description: 'Official tourism site for local breweries, parks, and historic sites'
   },
@@ -69,27 +79,9 @@ const EVENT_SOURCES = [
     url: 'https://visitfauquier.com/all-events/',
     name: 'Visit Fauquier',
     region: 'Fauquier County, VA',
-    type: 'tourism',
+    type: 'html',
     priority: 'medium',
     description: 'Tourism-focused site for Warrenton and Marshall area events'
-  },
-  {
-    url: 'https://www.discoverclarkecounty.com/events',
-    name: 'Discover Clarke County Events',
-    region: 'Clarke County, VA',
-    type: 'tourism',
-    priority: 'medium',
-    description: 'Main events hub focusing on outdoor activities, history, and local festivals'
-  },
-  
-  // Category 3: Local News & Lifestyle Sources
-  {
-    url: 'https://northernvirginiamag.com/events/',
-    name: 'Northern Virginia Magazine Events',
-    region: 'Northern Virginia',
-    type: 'lifestyle',
-    priority: 'high',
-    description: 'Curated high-end food, wine, and cultural events for target audience'
   }
 ];
 
@@ -98,6 +90,7 @@ interface EventBrief {
   event_date: string;
   event_location: string;
   event_summary: string;
+  event_url: string;
   relevance_score: number;
   source_url: string;
   source_region: string;
@@ -111,6 +104,7 @@ interface ScrapedContent {
   success: boolean;
   error?: string;
   priority: string;
+  type: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -129,15 +123,15 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    console.log('🔍 Starting REAL event scan with curated sources...');
+    console.log('🔍 Starting REAL event scan with RSS feeds and curated sources...');
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // --- Step 1: Scrape Real Event Websites ---
-    console.log('📡 Scraping curated local event websites...');
+    // --- Step 1: Fetch Event Data (RSS + HTML) ---
+    console.log('📡 Fetching event data from RSS feeds and websites...');
     
     // Sort sources by priority (high first)
     const prioritizedSources = EVENT_SOURCES.sort((a, b) => {
@@ -148,12 +142,12 @@ Deno.serve(async (req: Request) => {
     const scrapedContents: ScrapedContent[] = await Promise.all(
       prioritizedSources.map(async (source) => {
         try {
-          console.log(`Fetching: ${source.name} (${source.priority} priority)`);
+          console.log(`Fetching: ${source.name} (${source.type.toUpperCase()}, ${source.priority} priority)`);
           
           const response = await fetch(source.url, {
             headers: {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+              'Accept': source.type === 'rss' ? 'application/rss+xml, application/xml, text/xml' : 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
               'Accept-Language': 'en-US,en;q=0.9',
               'Accept-Encoding': 'gzip, deflate, br',
               'DNT': '1',
@@ -176,27 +170,34 @@ Deno.serve(async (req: Request) => {
               text: "", 
               success: false,
               error: `HTTP ${response.status}: ${response.statusText}`,
-              priority: source.priority
+              priority: source.priority,
+              type: source.type
             };
           }
           
           const text = await response.text();
           
-          // Extract meaningful content from HTML
-          const cleanedText = extractEventContent(text, source.type);
+          // Process content based on type
+          let cleanedText = '';
+          if (source.type === 'rss') {
+            cleanedText = extractRSSContent(text, source);
+          } else {
+            cleanedText = extractEventContent(text, source.type);
+          }
           
-          console.log(`✅ Successfully scraped ${source.name} (${cleanedText.length} characters)`);
+          console.log(`✅ Successfully fetched ${source.name} (${cleanedText.length} characters)`);
           return { 
             url: source.url, 
             name: source.name,
             region: source.region,
             text: cleanedText, 
             success: true,
-            priority: source.priority
+            priority: source.priority,
+            type: source.type
           };
           
         } catch (error) {
-          console.error(`Error scraping ${source.name}:`, error);
+          console.error(`Error fetching ${source.name}:`, error);
           return { 
             url: source.url, 
             name: source.name,
@@ -204,23 +205,25 @@ Deno.serve(async (req: Request) => {
             text: "", 
             success: false,
             error: error instanceof Error ? error.message : 'Unknown error',
-            priority: source.priority
+            priority: source.priority,
+            type: source.type
           };
         }
       })
     );
 
-    // Filter successful scrapes
+    // Filter successful fetches
     const successfulScrapes = scrapedContents.filter(content => content.success && content.text.length > 200);
+    const rssSources = successfulScrapes.filter(content => content.type === 'rss');
     const highPriorityScrapes = successfulScrapes.filter(content => content.priority === 'high');
     
-    console.log(`📊 Scraping results: ${successfulScrapes.length}/${EVENT_SOURCES.length} sources successful (${highPriorityScrapes.length} high-priority)`);
+    console.log(`📊 Fetch results: ${successfulScrapes.length}/${EVENT_SOURCES.length} sources successful (${rssSources.length} RSS, ${highPriorityScrapes.length} high-priority)`);
     
     if (successfulScrapes.length === 0) {
-      console.error('❌ No successful scrapes - all event sources failed');
+      console.error('❌ No successful fetches - all event sources failed');
       return new Response(JSON.stringify({
         success: false,
-        error: "No event data could be scraped from any source",
+        error: "No event data could be fetched from any source",
         scraped_sources: 0,
         total_sources: EVENT_SOURCES.length,
         scrape_errors: scrapedContents.map(s => ({ 
@@ -233,31 +236,36 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Combine scraped content, prioritizing high-value sources
+    // Combine content, prioritizing RSS feeds and high-value sources
     const combinedText = successfulScrapes
       .sort((a, b) => {
+        // RSS feeds first, then by priority
+        if (a.type === 'rss' && b.type !== 'rss') return -1;
+        if (a.type !== 'rss' && b.type === 'rss') return 1;
+        
         const priorityOrder = { 'high': 0, 'medium': 1, 'low': 2 };
         return priorityOrder[a.priority] - priorityOrder[b.priority];
       })
       .map(content => 
-        `=== ${content.name} (${content.region}) - ${content.priority.toUpperCase()} PRIORITY ===\nSource: ${content.url}\n${content.text}`
+        `=== ${content.name} (${content.region}) - ${content.type.toUpperCase()} ${content.priority.toUpperCase()} PRIORITY ===\nSource: ${content.url}\n${content.text}`
       ).join('\n\n---\n\n');
 
     // --- Step 2: AI Analysis for Wine/Tourism Events ---
-    console.log('🤖 Analyzing scraped content with AI for wine/tourism events...');
+    console.log('🤖 Analyzing event data with AI for wine/tourism events...');
     
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openaiApiKey) {
       console.error('❌ OpenAI API key not found - cannot analyze events');
       return new Response(JSON.stringify({
         success: false,
-        error: "OpenAI API key not configured - cannot analyze scraped event data",
+        error: "OpenAI API key not configured - cannot analyze event data",
         scraped_sources: successfulScrapes.length,
         total_sources: EVENT_SOURCES.length,
         scrape_details: successfulScrapes.map(s => ({ 
           name: s.name, 
           region: s.region, 
           priority: s.priority,
+          type: s.type,
           content_length: s.text.length 
         }))
       }), {
@@ -266,7 +274,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const analysisPrompt = `You are an expert event analyst specializing in wine tourism, craft beverage marketing, and local hospitality opportunities in the Virginia/DC metro region. Analyze the following REAL scraped content from curated local event websites and extract upcoming events that would be highly relevant for wineries to create marketing content about.
+    const analysisPrompt = `You are an expert event analyst specializing in wine tourism, craft beverage marketing, and local hospitality opportunities in the Virginia/DC metro region. Analyze the following REAL event data (including RSS feeds and website content) and extract upcoming events that would be highly relevant for wineries to create marketing content about.
 
 PRIORITY EVENT TYPES (focus on these first):
 🍷 WINE & BEVERAGE EVENTS:
@@ -295,25 +303,29 @@ EXTRACTION CRITERIA:
 ✅ FOCUS ON: Events that attract wine enthusiasts, tourists, or affluent locals
 
 For each relevant event, provide:
-- event_name: The EXACT name from the website
+- event_name: The EXACT name from the source
 - event_date: Specific date in YYYY-MM-DD format
 - event_location: Exact venue name and city from the source
 - event_summary: 1-2 sentences explaining the event and why it's perfect for winery marketing
+- event_url: The direct link to the event page (extract from RSS links or construct from website URLs)
 - relevance_score: Number from 1-10 (8+ for wine events, 6+ for tourism events, 5+ for community events)
-- source_url: The website where this event was found
+- source_url: The website/RSS feed where this event was found
 - source_region: The specific region/county this event is in
 
 QUALITY STANDARDS:
 - Only include events with relevance_score of 6 or higher
-- Prioritize events from HIGH PRIORITY sources
+- Prioritize events from RSS feeds (more reliable data)
 - Focus on events that would attract wine-buying demographics
 - Look for events where wineries could participate, sponsor, or create tie-in content
+- ALWAYS try to extract or construct the event_url for users to visit
+
+IMPORTANT: For RSS feed data, look for <link> tags or URLs within the content. For website data, try to construct logical event URLs based on the source website structure.
 
 Today's date is ${new Date().toLocaleDateString()}.
 
 Respond ONLY with a valid JSON object containing a single key "events", which is an array of event objects. If no relevant events are found, return {"events":[]}.
 
-SCRAPED CONTENT TO ANALYZE:
+EVENT DATA TO ANALYZE:
 ${combinedText}`;
 
     try {
@@ -328,7 +340,7 @@ ${combinedText}`;
           response_format: { type: "json_object" },
           messages: [
             { role: 'system', content: analysisPrompt },
-            { role: 'user', content: 'Please analyze the scraped event data and extract relevant wine/tourism events.' }
+            { role: 'user', content: 'Please analyze the event data and extract relevant wine/tourism events with their URLs.' }
           ],
           max_tokens: 4000,
           temperature: 0.1,
@@ -347,18 +359,20 @@ ${combinedText}`;
       console.log(`🎯 AI identified ${events.length} relevant events from real data`);
 
       if (events.length === 0) {
-        console.log('ℹ️ No relevant events found in scraped content');
+        console.log('ℹ️ No relevant events found in fetched content');
         return new Response(JSON.stringify({ 
           success: true,
-          message: "No relevant events found in current scraped content",
+          message: "No relevant events found in current event data",
           events_found: 0,
           scraped_sources: successfulScrapes.length,
+          rss_sources: rssSources.length,
           high_priority_sources: highPriorityScrapes.length,
           total_sources: EVENT_SOURCES.length,
           scrape_details: successfulScrapes.map(s => ({ 
             name: s.name, 
             region: s.region, 
             priority: s.priority,
+            type: s.type,
             content_length: s.text.length 
           }))
         }), { 
@@ -387,7 +401,8 @@ ${combinedText}`;
             name: e.event_name, 
             date: e.event_date, 
             relevance: e.relevance_score,
-            source: e.source_region
+            source: e.source_region,
+            url: e.event_url
           }))
         }), { 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -412,6 +427,7 @@ ${combinedText}`;
                 `Date: ${event.event_date}`,
                 `Location: ${event.event_location}`,
                 `Summary: ${event.event_summary}`,
+                `Event URL: ${event.event_url}`,
                 `Relevance Score: ${event.relevance_score}/10`,
                 `Source: ${event.source_url}`,
                 `Region: ${event.source_region}`,
@@ -420,7 +436,7 @@ ${combinedText}`;
               local_event_name: event.event_name,
               local_event_date: event.event_date ? new Date(event.event_date).toISOString() : null,
               local_event_location: event.event_location,
-              seasonal_context: `Real event discovered by Event Engine from ${event.source_region}. ${event.event_summary} This is an actual opportunity for ${winery.winery_name} to engage with the local wine community.`
+              seasonal_context: `Real event discovered by Event Engine from ${event.source_region}. ${event.event_summary} This is an actual opportunity for ${winery.winery_name} to engage with the local wine community. Event details: ${event.event_url}`
             };
 
             const { data: newBrief, error: briefError } = await supabase
@@ -440,8 +456,8 @@ ${combinedText}`;
             const contentRequest = {
               content_type: 'social_media',
               primary_topic: `Local event opportunity: ${event.event_name}`,
-              key_talking_points: `${event.event_summary} Event details: ${event.event_date} at ${event.event_location}. This is a real opportunity happening in ${event.source_region} for ${winery.winery_name} to connect with the local wine community.`,
-              call_to_action: 'Join us and discover exceptional wines at this exciting local event!'
+              key_talking_points: `${event.event_summary} Event details: ${event.event_date} at ${event.event_location}. This is a real opportunity happening in ${event.source_region} for ${winery.winery_name} to connect with the local wine community. Learn more: ${event.event_url}`,
+              call_to_action: `Join us and discover exceptional wines at this exciting local event! Details: ${event.event_url}`
             };
 
             // Call the generate-content function
@@ -475,18 +491,20 @@ ${combinedText}`;
       return new Response(JSON.stringify({
         success: true,
         message: `Successfully processed ${events.length} real events for ${wineries.length} wineries`,
-        data_source: 'real_events',
+        data_source: 'real_events_with_rss',
         events_processed: events.length,
         wineries_processed: wineries.length,
         briefs_created: briefsCreatedCount,
         content_generated: contentGeneratedCount,
         scraped_sources: successfulScrapes.length,
+        rss_sources: rssSources.length,
         high_priority_sources: highPriorityScrapes.length,
         total_sources: EVENT_SOURCES.length,
         scrape_details: successfulScrapes.map(s => ({ 
           name: s.name, 
           region: s.region, 
           priority: s.priority,
+          type: s.type,
           content_length: s.text.length 
         })),
         events: events.map(e => ({ 
@@ -494,7 +512,8 @@ ${combinedText}`;
           date: e.event_date, 
           location: e.event_location,
           relevance: e.relevance_score,
-          source: e.source_region
+          source: e.source_region,
+          url: e.event_url
         }))
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -528,6 +547,58 @@ ${combinedText}`;
   }
 });
 
+// Helper function to extract content from RSS feeds
+function extractRSSContent(rssXml: string, source: any): string {
+  try {
+    console.log(`📰 Processing RSS feed from ${source.name}`);
+    
+    // Extract RSS items using regex (simple XML parsing)
+    const itemMatches = rssXml.match(/<item[^>]*>[\s\S]*?<\/item>/gi) || [];
+    
+    let extractedContent = `RSS Feed from ${source.name} (${source.region})\n\n`;
+    
+    itemMatches.forEach((item, index) => {
+      if (index >= 20) return; // Limit to first 20 items
+      
+      // Extract title
+      const titleMatch = item.match(/<title[^>]*><!\[CDATA\[(.*?)\]\]><\/title>|<title[^>]*>(.*?)<\/title>/i);
+      const title = titleMatch ? (titleMatch[1] || titleMatch[2] || '').trim() : '';
+      
+      // Extract description
+      const descMatch = item.match(/<description[^>]*><!\[CDATA\[(.*?)\]\]><\/description>|<description[^>]*>(.*?)<\/description>/i);
+      const description = descMatch ? (descMatch[1] || descMatch[2] || '').trim() : '';
+      
+      // Extract link
+      const linkMatch = item.match(/<link[^>]*>(.*?)<\/link>/i);
+      const link = linkMatch ? linkMatch[1].trim() : '';
+      
+      // Extract date
+      const dateMatch = item.match(/<pubDate[^>]*>(.*?)<\/pubDate>/i);
+      const pubDate = dateMatch ? dateMatch[1].trim() : '';
+      
+      // Clean up HTML entities and tags
+      const cleanTitle = title.replace(/<[^>]*>/g, '').replace(/&[^;]+;/g, ' ').trim();
+      const cleanDescription = description.replace(/<[^>]*>/g, '').replace(/&[^;]+;/g, ' ').trim();
+      
+      if (cleanTitle) {
+        extractedContent += `EVENT: ${cleanTitle}\n`;
+        if (pubDate) extractedContent += `DATE: ${pubDate}\n`;
+        if (link) extractedContent += `URL: ${link}\n`;
+        if (cleanDescription) extractedContent += `DESCRIPTION: ${cleanDescription}\n`;
+        extractedContent += `---\n\n`;
+      }
+    });
+    
+    console.log(`✅ Extracted ${itemMatches.length} RSS items from ${source.name}`);
+    return extractedContent;
+    
+  } catch (error) {
+    console.error(`Error parsing RSS from ${source.name}:`, error);
+    // Fallback to treating as regular text
+    return rssXml.substring(0, 8000);
+  }
+}
+
 // Helper function to extract meaningful event content from HTML
 function extractEventContent(html: string, sourceType: string): string {
   try {
@@ -541,10 +612,10 @@ function extractEventContent(html: string, sourceType: string): string {
     
     // Decode HTML entities
     cleaned = cleaned.replace(/&nbsp;/g, ' ');
-    cleaned = cleaned.replace(/&/g, '&');
-    cleaned = cleaned.replace(/</g, '<');
-    cleaned = cleaned.replace(/>/g, '>');
-    cleaned = cleaned.replace(/"/g, '"');
+    cleaned = cleaned.replace(/&amp;/g, '&');
+    cleaned = cleaned.replace(/&lt;/g, '<');
+    cleaned = cleaned.replace(/&gt;/g, '>');
+    cleaned = cleaned.replace(/&quot;/g, '"');
     cleaned = cleaned.replace(/&#39;/g, "'");
     cleaned = cleaned.replace(/&rsquo;/g, "'");
     cleaned = cleaned.replace(/&ldquo;/g, '"');
