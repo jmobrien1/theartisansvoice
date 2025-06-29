@@ -14,7 +14,7 @@ export function Settings({ wineryProfile, onProfileUpdate }: SettingsProps) {
     winery_name: '',
     owner_name: '',
     location: '',
-    brand_voice: '',
+    brand_tone: '',
     backstory: '',
     target_audience: '',
     wine_types: '',
@@ -33,7 +33,7 @@ export function Settings({ wineryProfile, onProfileUpdate }: SettingsProps) {
         winery_name: wineryProfile.winery_name || '',
         owner_name: wineryProfile.owner_name || '',
         location: wineryProfile.location || '',
-        brand_voice: wineryProfile.brand_voice || '',
+        brand_tone: wineryProfile.brand_tone || '',
         backstory: wineryProfile.backstory || '',
         target_audience: wineryProfile.target_audience || '',
         wine_types: wineryProfile.wine_types?.join(', ') || '',
@@ -191,8 +191,8 @@ export function Settings({ wineryProfile, onProfileUpdate }: SettingsProps) {
                 Brand Voice
               </label>
               <select
-                value={formData.brand_voice}
-                onChange={(e) => setFormData(prev => ({ ...prev, brand_voice: e.target.value }))}
+                value={formData.brand_tone}
+                onChange={(e) => setFormData(prev => ({ ...prev, brand_tone: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
               >
                 <option value="">Select brand voice...</option>

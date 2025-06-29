@@ -23,7 +23,7 @@ export function OnboardingWizard() {
     winery_name: '',
     owner_name: '',
     location: '',
-    brand_voice: '',
+    brand_tone: '',
     backstory: '',
     wine_types: [] as string[],
     target_audience: '',
@@ -74,7 +74,7 @@ export function OnboardingWizard() {
       case 1:
         return formData.winery_name && formData.owner_name && formData.location;
       case 2:
-        return formData.brand_voice && formData.backstory.length >= 50;
+        return formData.brand_tone && formData.backstory.length >= 50;
       case 3:
         return formData.wine_types.length > 0 && formData.target_audience;
       case 4:
@@ -139,8 +139,8 @@ export function OnboardingWizard() {
                 Brand Voice *
               </label>
               <select
-                value={formData.brand_voice}
-                onChange={(e) => setFormData(prev => ({ ...prev, brand_voice: e.target.value }))}
+                value={formData.brand_tone}
+                onChange={(e) => setFormData(prev => ({ ...prev, brand_tone: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
               >
                 <option value="">Select your brand voice...</option>
