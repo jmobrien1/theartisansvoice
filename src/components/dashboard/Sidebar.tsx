@@ -8,7 +8,8 @@ import {
   Settings, 
   Sparkles,
   X,
-  Grape
+  Grape,
+  Zap
 } from 'lucide-react';
 import { DashboardSection } from './Dashboard';
 
@@ -25,6 +26,7 @@ const navigation = [
   { id: 'pipeline', name: 'Content Pipeline', icon: FileText },
   { id: 'calendar', name: 'Calendar', icon: Calendar },
   { id: 'ai-agents', name: 'AI Agents', icon: Sparkles },
+  { id: 'event-engine', name: 'Event Engine', icon: Zap },
   { id: 'analytics', name: 'Analytics', icon: BarChart3 },
   { id: 'settings', name: 'Settings', icon: Settings },
 ] as const;
@@ -74,6 +76,11 @@ export function Sidebar({ activeSection, onSectionChange, wineryProfile, isOpen,
             >
               <Icon className={`mr-3 h-5 w-5 ${isActive ? 'text-amber-600' : 'text-gray-400'}`} />
               {item.name}
+              {item.id === 'event-engine' && (
+                <span className="ml-auto bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs px-2 py-1 rounded-full">
+                  NEW
+                </span>
+              )}
             </button>
           );
         })}

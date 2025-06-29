@@ -9,10 +9,11 @@ import { ContentCalendar } from './ContentCalendar';
 import { AIAgents } from './AIAgents';
 import { Analytics } from './Analytics';
 import { Settings } from './Settings';
+import { EventEngine } from './EventEngine';
 import { Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export type DashboardSection = 'overview' | 'pipeline' | 'calendar' | 'ai-agents' | 'analytics' | 'settings';
+export type DashboardSection = 'overview' | 'pipeline' | 'calendar' | 'ai-agents' | 'analytics' | 'event-engine' | 'settings';
 
 export function Dashboard() {
   const { user, signOut } = useAuth();
@@ -71,6 +72,8 @@ export function Dashboard() {
         return <AIAgents wineryProfile={wineryProfile} />;
       case 'analytics':
         return <Analytics wineryProfile={wineryProfile} />;
+      case 'event-engine':
+        return <EventEngine wineryProfile={wineryProfile} />;
       case 'settings':
         return <Settings wineryProfile={wineryProfile} onProfileUpdate={setWineryProfile} />;
       default:
