@@ -1,15 +1,15 @@
 /*
-  # Apify Webhook Ingestion Function
+  # Google Apps Script Webhook Ingestion Function
 
   1. Purpose
-    - Secure endpoint for Apify to send scraped data
-    - Simple data ingestion with no processing
-    - Stores raw HTML/XML for later AI analysis
+    - Secure endpoint for Google Apps Script to send clean event data
+    - Simple data ingestion with structured JSON payload
+    - Stores clean event data for AI processing
 
   2. Functionality
-    - Receives POST requests from Apify webhook
-    - Validates and stores raw content in raw_events table
-    - No AI processing - pure data ingestion
+    - Receives POST requests from Google Apps Script
+    - Validates and stores event data in raw_events table
+    - No web scraping - pure data ingestion from Google's reliable infrastructure
 
   3. Security
     - Uses service role for database access
@@ -25,12 +25,15 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-interface ApifyWebhookPayload {
-  source_url: string;
-  source_name?: string;
-  raw_content: string;
-  apify_run_id?: string;
-  scrape_timestamp?: string;
+interface GoogleAppsScriptEvent {
+  title: string;
+  link: string;
+  description: string;
+  pubDate: string;
+}
+
+interface GoogleAppsScriptPayload {
+  events: GoogleAppsScriptEvent[];
 }
 
 Deno.serve(async (req: Request) => {
@@ -49,16 +52,16 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    console.log('🔄 Apify webhook received');
+    console.log('🔄 Google Apps Script webhook received');
 
-    const payload: ApifyWebhookPayload = await req.json();
+    const payload: GoogleAppsScriptPayload = await req.json();
 
-    // Validate required fields
-    if (!payload.source_url || !payload.raw_content) {
-      console.error('❌ Invalid payload: missing source_url or raw_content');
+    // Validate payload structure
+    if (!payload.events || !Array.isArray(payload.events)) {
+      console.error('❌ Invalid payload: missing events array');
       return new Response(
         JSON.stringify({ 
-          error: "Missing required fields: source_url and raw_content" 
+          error: "Missing required field: events (must be an array)" 
         }),
         {
           status: 400,
@@ -70,15 +73,15 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Validate content length
-    if (payload.raw_content.length < 100) {
-      console.error('❌ Content too short, likely blocked or failed scrape');
+    if (payload.events.length === 0) {
+      console.log('ℹ️ No events in payload');
       return new Response(
         JSON.stringify({ 
-          error: "Raw content too short - possible scraping failure" 
+          success: true,
+          message: "No events to process",
+          events_processed: 0
         }),
         {
-          status: 400,
           headers: {
             'Content-Type': 'application/json',
             ...corsHeaders,
@@ -86,6 +89,8 @@ Deno.serve(async (req: Request) => {
         }
       );
     }
+
+    console.log(`📊 Processing ${payload.events.length} events from Google Apps Script`);
 
     // Initialize Supabase client with service role
     const supabase = createClient(
@@ -93,25 +98,72 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Insert raw data into database
+    const rawEventsToInsert = [];
+
+    // Process each event from Google Apps Script
+    for (const event of payload.events) {
+      // Validate event structure
+      if (!event.title || !event.description) {
+        console.warn('⚠️ Skipping event with missing title or description');
+        continue;
+      }
+
+      // Create raw content string combining all event data
+      const rawContent = `Title: ${event.title}
+Description: ${event.description}
+Link: ${event.link || 'No link provided'}
+Published: ${event.pubDate || 'No date provided'}`;
+
+      // Determine source name from link
+      let sourceName = 'Unknown Source';
+      if (event.link) {
+        if (event.link.includes('visitloudoun')) sourceName = 'Visit Loudoun Events';
+        else if (event.link.includes('fxva.com')) sourceName = 'FXVA Events';
+        else if (event.link.includes('virginia.org')) sourceName = 'Virginia Tourism Events';
+        else if (event.link.includes('visitpwc')) sourceName = 'Prince William County Events';
+        else if (event.link.includes('visitfauquier')) sourceName = 'Visit Fauquier Events';
+        else if (event.link.includes('northernvirginiamag')) sourceName = 'Northern Virginia Magazine Events';
+        else if (event.link.includes('discoverclarkecounty')) sourceName = 'Discover Clarke County Events';
+        else sourceName = new URL(event.link).hostname;
+      }
+
+      rawEventsToInsert.push({
+        source_url: event.link || 'https://google-apps-script-source',
+        source_name: sourceName,
+        raw_content: rawContent,
+        is_processed: false,
+        scrape_timestamp: new Date().toISOString()
+      });
+    }
+
+    if (rawEventsToInsert.length === 0) {
+      console.log('ℹ️ No valid events to insert');
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          message: "No valid events found to process",
+          events_processed: 0
+        }),
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders,
+          }
+        }
+      );
+    }
+
+    // Insert all raw events into database
     const { data, error } = await supabase
       .from('raw_events')
-      .insert([{
-        source_url: payload.source_url,
-        source_name: payload.source_name || payload.source_url,
-        raw_content: payload.raw_content,
-        apify_run_id: payload.apify_run_id,
-        scrape_timestamp: payload.scrape_timestamp ? new Date(payload.scrape_timestamp).toISOString() : new Date().toISOString(),
-        is_processed: false
-      }])
-      .select()
-      .single();
+      .insert(rawEventsToInsert)
+      .select();
 
     if (error) {
       console.error('❌ Database error:', error);
       return new Response(
         JSON.stringify({ 
-          error: "Failed to store raw data",
+          error: "Failed to store event data",
           details: error.message
         }),
         {
@@ -124,18 +176,19 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log(`✅ Raw data stored successfully: ${payload.source_url} (${payload.raw_content.length} chars)`);
+    console.log(`✅ Successfully stored ${data?.length || 0} events from Google Apps Script`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: "Raw data ingested successfully",
-        data: {
-          id: data.id,
-          source_url: data.source_url,
-          content_length: data.content_length,
-          created_at: data.created_at
-        }
+        message: `Successfully ingested ${data?.length || 0} events from Google Apps Script`,
+        events_processed: data?.length || 0,
+        data: data?.map(item => ({
+          id: item.id,
+          source_name: item.source_name,
+          content_length: item.content_length,
+          created_at: item.created_at
+        }))
       }),
       {
         headers: {

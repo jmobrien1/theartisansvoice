@@ -1,7 +1,0 @@
-{
-  "source_url": "{{resource.url}}",
-  "source_name": "{{resource.url}}",
-  "raw_content": "{{resource.text}}",
-  "apify_run_id": "{{resource.actorRunId}}",
-  "scrape_timestamp": "{{resource.finishedAt}}"
-}

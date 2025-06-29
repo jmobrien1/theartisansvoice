@@ -18,7 +18,8 @@ import {
   Target,
   ArrowRight,
   Settings,
-  Info
+  Info,
+  Code
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
@@ -67,7 +68,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
 
   const fetchData = async () => {
     try {
-      // Fetch raw events from Apify
+      // Fetch raw events from Google Apps Script
       const { data: rawData, error: rawError } = await supabase
         .from('raw_events')
         .select('*')
@@ -97,7 +98,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
     }
   };
 
-  const handleProcessApifyData = async () => {
+  const handleProcessGoogleData = async () => {
     setProcessing(true);
     try {
       const { data, error } = await supabase.functions.invoke('scan-local-events', {
@@ -120,8 +121,8 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
       }
 
     } catch (error) {
-      console.error('Error processing Apify data:', error);
-      toast.error('Failed to process Apify data');
+      console.error('Error processing Google Apps Script data:', error);
+      toast.error('Failed to process Google Apps Script data');
     } finally {
       setProcessing(false);
     }
@@ -193,55 +194,55 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
           <h1 className="text-2xl font-bold text-gray-900 flex items-center">
             <Zap className="h-7 w-7 text-purple-600 mr-3" />
             Event Engine
-            <span className="ml-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs px-3 py-1 rounded-full">
-              APIFY POWERED
+            <span className="ml-3 bg-gradient-to-r from-green-500 to-blue-600 text-white text-xs px-3 py-1 rounded-full">
+              GOOGLE POWERED
             </span>
           </h1>
           <p className="text-gray-600">
-            Professional-grade event discovery with AI-powered competitor filtering
+            Reliable event discovery powered by Google Apps Script infrastructure
           </p>
         </div>
       </div>
 
-      {/* Apify Pipeline Status */}
+      {/* Google Apps Script Pipeline Status */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl border border-purple-200 p-6"
+        className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl border border-green-200 p-6"
       >
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-blue-600 rounded-lg flex items-center justify-center">
-              <Database className="h-6 w-6 text-white" />
+            <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-blue-600 rounded-lg flex items-center justify-center">
+              <Code className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Apify Data Pipeline</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Google Apps Script Pipeline</h3>
               <p className="text-sm text-gray-600">
-                Professional web scraping → AI filtering → Event opportunities
+                Reliable RSS scanning → Clean data extraction → AI event filtering
               </p>
             </div>
           </div>
           <div className="text-right">
-            <div className="text-2xl font-bold text-purple-600">{rawEvents.length}</div>
-            <div className="text-xs text-gray-500">Sources scraped</div>
+            <div className="text-2xl font-bold text-green-600">{rawEvents.length}</div>
+            <div className="text-xs text-gray-500">Events ingested</div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-          <div className="bg-white rounded-lg p-4 border border-purple-100">
+          <div className="bg-white rounded-lg p-4 border border-green-100">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Unprocessed Data</p>
-                <p className="text-xl font-bold text-purple-600">{unprocessedCount}</p>
+                <p className="text-xl font-bold text-green-600">{unprocessedCount}</p>
               </div>
-              <Clock className="h-5 w-5 text-purple-400" />
+              <Clock className="h-5 w-5 text-green-400" />
             </div>
           </div>
           
           <div className="bg-white rounded-lg p-4 border border-blue-100">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Data Size</p>
+                <p className="text-sm font-medium text-gray-600">Clean Data Size</p>
                 <p className="text-xl font-bold text-blue-600">
                   {(totalDataSize / 1024).toFixed(0)}KB
                 </p>
@@ -250,13 +251,13 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
             </div>
           </div>
           
-          <div className="bg-white rounded-lg p-4 border border-green-100">
+          <div className="bg-white rounded-lg p-4 border border-purple-100">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Events Found</p>
-                <p className="text-xl font-bold text-green-600">{researchBriefs.length}</p>
+                <p className="text-xl font-bold text-purple-600">{researchBriefs.length}</p>
               </div>
-              <Target className="h-5 w-5 text-green-400" />
+              <Target className="h-5 w-5 text-purple-400" />
             </div>
           </div>
         </div>
@@ -271,7 +272,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
               type="date"
               value={dateRange.start_date}
               onChange={(e) => setDateRange(prev => ({ ...prev, start_date: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
             />
           </div>
           <div>
@@ -282,25 +283,25 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
               type="date"
               value={dateRange.end_date}
               onChange={(e) => setDateRange(prev => ({ ...prev, end_date: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
             />
           </div>
         </div>
 
         <button
-          onClick={handleProcessApifyData}
+          onClick={handleProcessGoogleData}
           disabled={processing || unprocessedCount === 0}
-          className="w-full flex items-center justify-center px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="w-full flex items-center justify-center px-6 py-3 bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-lg hover:from-green-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {processing ? (
             <>
               <RefreshCw className="h-5 w-5 mr-2 animate-spin" />
-              Processing Apify Data...
+              Processing Google Data...
             </>
           ) : unprocessedCount > 0 ? (
             <>
               <Sparkles className="h-5 w-5 mr-2" />
-              Process {unprocessedCount} New Sources
+              Process {unprocessedCount} New Events
             </>
           ) : (
             <>
@@ -312,7 +313,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
 
         {unprocessedCount === 0 && rawEvents.length > 0 && (
           <p className="text-center text-sm text-gray-600 mt-2">
-            All Apify data has been processed. Run your Apify scraper to get new data.
+            All Google Apps Script data has been processed. Run your Google Apps Script to get new data.
           </p>
         )}
       </motion.div>
@@ -367,7 +368,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
                       <p className="text-sm text-gray-600">{event.date} • {event.location}</p>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm font-medium text-purple-600">
+                      <div className="text-sm font-medium text-green-600">
                         Score: {event.relevance}/10
                       </div>
                       <div className="text-xs text-gray-500">{event.source}</div>
@@ -380,7 +381,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
         </motion.div>
       )}
 
-      {/* Apify Sources Status */}
+      {/* Google Apps Script Sources Status */}
       {rawEvents.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -389,8 +390,8 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
           className="bg-white rounded-xl border border-gray-200 p-6"
         >
           <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-            <Database className="h-5 w-5 text-blue-500 mr-2" />
-            Apify Data Sources
+            <Database className="h-5 w-5 text-green-500 mr-2" />
+            Google Apps Script Data Sources
           </h3>
           
           <div className="space-y-3">
@@ -402,7 +403,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
                   </p>
                   <p className="text-xs text-gray-600">
                     {(event.content_length / 1024).toFixed(1)}KB • 
-                    Scraped {formatDateTime(event.scrape_timestamp)}
+                    Processed {formatDateTime(event.scrape_timestamp)}
                   </p>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -459,12 +460,12 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
                 </p>
                 
                 <div className="flex items-center justify-between">
-                  <span className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">
-                    AI Verified Non-Competitor
+                  <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                    Google Verified Non-Competitor
                   </span>
                   <button
                     onClick={() => handleCreateContent(brief)}
-                    className="flex items-center px-3 py-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 text-sm transition-colors"
+                    className="flex items-center px-3 py-1 bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-lg hover:from-green-700 hover:to-blue-700 text-sm transition-colors"
                   >
                     <Plus className="h-3 w-3 mr-1" />
                     Create Content
@@ -485,10 +486,10 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
           <h3 className="text-lg font-semibold text-gray-900 mb-2">No Events Discovered Yet</h3>
           <p className="text-gray-600 mb-4">
             {rawEvents.length === 0 
-              ? "Set up your Apify scraper to start discovering local events automatically."
+              ? "Run your Google Apps Script to start discovering local events automatically."
               : unprocessedCount > 0
-              ? "Process the Apify data above to discover relevant local events."
-              : "No relevant events found in the current data. Run your Apify scraper to get fresh data."
+              ? "Process the Google Apps Script data above to discover relevant local events."
+              : "No relevant events found in the current data. Run your Google Apps Script to get fresh data."
             }
           </p>
         </motion.div>
@@ -500,52 +501,49 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
-          className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200 p-6"
+          className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl border border-green-200 p-6"
         >
           <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-            <Settings className="h-5 w-5 text-blue-500 mr-2" />
-            Apify Setup Instructions
+            <Settings className="h-5 w-5 text-green-500 mr-2" />
+            Google Apps Script Setup Status
           </h3>
           
           <div className="space-y-4">
             <div className="flex items-start space-x-3">
-              <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">1</div>
+              <div className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold">✓</div>
               <div>
-                <p className="font-medium text-gray-900">Configure Web Scraper</p>
+                <p className="font-medium text-gray-900">Google Apps Script Created</p>
                 <p className="text-sm text-gray-600">
-                  In your Apify Web Scraper, add all 11 source URLs and set up the page function to extract content.
+                  Your CraftAmplify Scanner is ready and running on Google's reliable infrastructure.
                 </p>
               </div>
             </div>
             
             <div className="flex items-start space-x-3">
-              <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">2</div>
+              <div className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold">✓</div>
               <div>
-                <p className="font-medium text-gray-900">Set Up Webhook</p>
+                <p className="font-medium text-gray-900">Webhook Configured</p>
                 <p className="text-sm text-gray-600">
-                  Configure webhook integration to send data to: 
-                  <code className="bg-gray-100 px-2 py-1 rounded text-xs ml-1">
-                    {import.meta.env.VITE_SUPABASE_URL}/functions/v1/ingest-raw-events
-                  </code>
+                  Data pipeline is configured to send clean event data to your Supabase backend.
                 </p>
               </div>
             </div>
             
             <div className="flex items-start space-x-3">
-              <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">3</div>
+              <div className="w-6 h-6 bg-amber-500 text-white rounded-full flex items-center justify-center text-sm font-bold">!</div>
               <div>
-                <p className="font-medium text-gray-900">Schedule & Run</p>
+                <p className="font-medium text-gray-900">Waiting for First Run</p>
                 <p className="text-sm text-gray-600">
-                  Set up daily scheduled runs and trigger your first scrape to start discovering events.
+                  Run your Google Apps Script manually or wait for the scheduled execution to start discovering events.
                 </p>
               </div>
             </div>
           </div>
           
-          <div className="mt-6 p-4 bg-white rounded-lg border border-blue-200">
+          <div className="mt-6 p-4 bg-white rounded-lg border border-green-200">
             <div className="flex items-center space-x-2 mb-2">
-              <Info className="h-4 w-4 text-blue-500" />
-              <span className="font-medium text-gray-900">Webhook URL</span>
+              <Info className="h-4 w-4 text-green-500" />
+              <span className="font-medium text-gray-900">Webhook Endpoint</span>
             </div>
             <code className="text-sm bg-gray-100 p-2 rounded block break-all">
               {import.meta.env.VITE_SUPABASE_URL}/functions/v1/ingest-raw-events
