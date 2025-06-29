@@ -9,7 +9,8 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
-  Plus
+  Plus,
+  Zap
 } from 'lucide-react';
 import { ContentRequestModal, ContentRequest } from './ContentRequestModal';
 
@@ -68,18 +69,24 @@ export function AIAgents({ wineryProfile }: AIAgentsProps) {
     setActiveAgent(agentId);
 
     try {
+      let endpoint = agentId;
       const requestBody: any = {
         winery_id: wineryProfile.id,
         winery_profile: wineryProfile
       };
 
-      // Add content request data if provided
-      if (contentRequest) {
+      // Use the supercharged generate-content endpoint for content requests
+      if (contentRequest && agentId === 'sommelier-writer') {
+        endpoint = 'generate-content';
+        requestBody.content_request = contentRequest;
+        // Remove winery_profile since generate-content fetches it directly
+        delete requestBody.winery_profile;
+      } else if (contentRequest) {
         requestBody.content_request = contentRequest;
       }
 
-      // Simulate API call to Supabase Edge Function
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${agentId}`, {
+      // Call the appropriate Supabase Edge Function
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${endpoint}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
@@ -154,12 +161,46 @@ export function AIAgents({ wineryProfile }: AIAgentsProps) {
         </div>
         <button
           onClick={() => handleContentRequest('sommelier-writer')}
-          className="flex items-center px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-lg hover:from-amber-700 hover:to-orange-700 transition-colors"
+          className="flex items-center px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-lg hover:from-amber-700 hover:to-orange-700 transition-colors shadow-lg"
         >
-          <Plus className="h-4 w-4 mr-2" />
-          New Content Request
+          <Zap className="h-4 w-4 mr-2" />
+          Supercharged Content Request
         </button>
       </div>
+
+      {/* Brand Voice Status */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200 p-4"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-gradient-to-r from-amber-500 to-orange-600 rounded-lg flex items-center justify-center">
+              <Sparkles className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">Brand Voice Guide Status</h3>
+              <p className="text-sm text-gray-600">
+                {wineryProfile.brand_personality_summary && wineryProfile.ai_writing_guidelines ? 
+                  'Complete - AI will generate highly personalized content' :
+                  'Incomplete - Complete your brand voice in Settings for better results'
+                }
+              </p>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-sm text-gray-500">
+              {[
+                wineryProfile.brand_personality_summary,
+                wineryProfile.core_tone_attributes,
+                wineryProfile.messaging_style,
+                wineryProfile.ai_writing_guidelines
+              ].filter(Boolean).length}/4 sections complete
+            </div>
+          </div>
+        </div>
+      </motion.div>
 
       {/* Agents Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -180,6 +221,11 @@ export function AIAgents({ wineryProfile }: AIAgentsProps) {
                 </div>
                 <div className="flex items-center space-x-2">
                   {getStatusIcon(status)}
+                  {agent.id === 'sommelier-writer' && (
+                    <div className="bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs px-2 py-1 rounded-full font-medium">
+                      SUPERCHARGED
+                    </div>
+                  )}
                 </div>
               </div>
               
@@ -188,6 +234,11 @@ export function AIAgents({ wineryProfile }: AIAgentsProps) {
               </h3>
               <p className="text-gray-600 text-sm mb-4">
                 {agent.description}
+                {agent.id === 'sommelier-writer' && (
+                  <span className="block mt-1 text-amber-700 font-medium">
+                    ✨ Now uses your complete Brand Voice Guide for authentic content
+                  </span>
+                )}
               </p>
               
               <div className="flex space-x-2">
@@ -208,8 +259,9 @@ export function AIAgents({ wineryProfile }: AIAgentsProps) {
                     onClick={() => handleContentRequest(agent.id)}
                     disabled={loading === agent.id}
                     className="px-3 py-2 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-lg hover:from-amber-700 hover:to-orange-700 disabled:opacity-50 transition-colors"
+                    title="Create specific content request"
                   >
-                    <Plus className="h-4 w-4" />
+                    <Zap className="h-4 w-4" />
                   </button>
                 )}
               </div>
@@ -236,9 +288,15 @@ export function AIAgents({ wineryProfile }: AIAgentsProps) {
                       <p className="font-medium">Success!</p>
                       <p>Agent completed successfully. Check your content pipeline for results.</p>
                       {results[agent.id].data?.content && (
-                        <p className="mt-1 text-gray-600">
-                          Created: "{results[agent.id].data.content.title}"
-                        </p>
+                        <div className="mt-2 text-gray-600">
+                          <p>Created: "{results[agent.id].data.content.title}"</p>
+                          {results[agent.id].data.word_count && (
+                            <p>Word count: {results[agent.id].data.word_count}</p>
+                          )}
+                          {results[agent.id].data.generation_method === 'openai_gpt4' && (
+                            <p className="text-amber-600 font-medium">✨ Generated with OpenAI GPT-4</p>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}
@@ -249,62 +307,49 @@ export function AIAgents({ wineryProfile }: AIAgentsProps) {
         })}
       </div>
 
-      {/* Agent Workflow */}
+      {/* How It Works */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
         className="bg-white rounded-xl border border-gray-200 p-6"
       >
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">How to Use AI Agents</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">How the Supercharged System Works</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <h4 className="font-medium text-gray-900 mb-3">Quick Run</h4>
-            <div className="space-y-3">
-              <div className="flex items-start space-x-3">
-                <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-medium">
-                  1
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Research & Strategy</p>
-                  <p className="text-xs text-gray-600">Use Terroir Research and Vintage Strategist for general content ideas</p>
-                </div>
-              </div>
-              <div className="flex items-start space-x-3">
-                <div className="w-6 h-6 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center text-xs font-medium">
-                  2
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Generate Content</p>
-                  <p className="text-xs text-gray-600">Quick run creates generic content based on your brand voice</p>
-                </div>
-              </div>
+            <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+              <Sparkles className="h-4 w-4 mr-2 text-amber-500" />
+              Brand Voice Guide (The "How")
+            </h4>
+            <div className="space-y-2 text-sm text-gray-600">
+              <p>• Brand personality and tone attributes</p>
+              <p>• Messaging style and communication approach</p>
+              <p>• Preferred vocabulary and words to avoid</p>
+              <p>• Specific AI writing guidelines</p>
+              <p>• Winery backstory and context</p>
             </div>
           </div>
           
           <div>
-            <h4 className="font-medium text-gray-900 mb-3">Content Request (Recommended)</h4>
-            <div className="space-y-3">
-              <div className="flex items-start space-x-3">
-                <div className="w-6 h-6 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-xs font-medium">
-                  1
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Specific Assignment</p>
-                  <p className="text-xs text-gray-600">Tell the AI exactly what content you need</p>
-                </div>
-              </div>
-              <div className="flex items-start space-x-3">
-                <div className="w-6 h-6 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center text-xs font-medium">
-                  2
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Targeted Results</p>
-                  <p className="text-xs text-gray-600">Get content that matches your exact requirements</p>
-                </div>
-              </div>
+            <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+              <Zap className="h-4 w-4 mr-2 text-blue-500" />
+              Content Request (The "What")
+            </h4>
+            <div className="space-y-2 text-sm text-gray-600">
+              <p>• Specific content type and topic</p>
+              <p>• Key talking points to include</p>
+              <p>• Call-to-action requirements</p>
+              <p>• Detailed assignment instructions</p>
+              <p>• Target audience considerations</p>
             </div>
           </div>
+        </div>
+        
+        <div className="mt-6 p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg border border-amber-200">
+          <p className="text-sm text-gray-700">
+            <strong>Result:</strong> The AI combines your Brand Voice Guide with your specific Content Request to create 
+            incredibly detailed, personalized content that sounds authentically like your winery every single time.
+          </p>
         </div>
       </motion.div>
 
