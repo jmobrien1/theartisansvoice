@@ -14,7 +14,12 @@ export function Settings({ wineryProfile, onProfileUpdate }: SettingsProps) {
     winery_name: '',
     owner_name: '',
     location: '',
-    brand_tone: '',
+    brand_personality_summary: '',
+    core_tone_attributes: '',
+    messaging_style: '',
+    vocabulary_to_use: '',
+    vocabulary_to_avoid: '',
+    ai_writing_guidelines: '',
     backstory: '',
     target_audience: '',
     wine_types: '',
@@ -33,7 +38,12 @@ export function Settings({ wineryProfile, onProfileUpdate }: SettingsProps) {
         winery_name: wineryProfile.winery_name || '',
         owner_name: wineryProfile.owner_name || '',
         location: wineryProfile.location || '',
-        brand_tone: wineryProfile.brand_tone || '',
+        brand_personality_summary: wineryProfile.brand_personality_summary || '',
+        core_tone_attributes: wineryProfile.core_tone_attributes || '',
+        messaging_style: wineryProfile.messaging_style || '',
+        vocabulary_to_use: wineryProfile.vocabulary_to_use || '',
+        vocabulary_to_avoid: wineryProfile.vocabulary_to_avoid || '',
+        ai_writing_guidelines: wineryProfile.ai_writing_guidelines || '',
         backstory: wineryProfile.backstory || '',
         target_audience: wineryProfile.target_audience || '',
         wine_types: wineryProfile.wine_types?.join(', ') || '',
@@ -113,7 +123,7 @@ export function Settings({ wineryProfile, onProfileUpdate }: SettingsProps) {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-600">Manage your winery profile and integrations</p>
+        <p className="text-gray-600">Manage your winery profile and brand voice</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -188,20 +198,107 @@ export function Settings({ wineryProfile, onProfileUpdate }: SettingsProps) {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Brand Voice
+                Brand Personality Summary
+              </label>
+              <textarea
+                value={formData.brand_personality_summary}
+                onChange={(e) => setFormData(prev => ({ ...prev, brand_personality_summary: e.target.value }))}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                placeholder="Describe your winery's personality and character..."
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Core Tone Attributes
+              </label>
+              <input
+                type="text"
+                value={formData.core_tone_attributes}
+                onChange={(e) => setFormData(prev => ({ ...prev, core_tone_attributes: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                placeholder="e.g., Elegant, Sophisticated, Warm, Approachable"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Messaging Style
               </label>
               <select
-                value={formData.brand_tone}
-                onChange={(e) => setFormData(prev => ({ ...prev, brand_tone: e.target.value }))}
+                value={formData.messaging_style}
+                onChange={(e) => setFormData(prev => ({ ...prev, messaging_style: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
               >
-                <option value="">Select brand voice...</option>
-                <option value="elegant">Elegant & Sophisticated</option>
-                <option value="approachable">Approachable & Friendly</option>
-                <option value="traditional">Traditional & Heritage</option>
-                <option value="modern">Modern & Innovative</option>
-                <option value="rustic">Rustic & Authentic</option>
+                <option value="">Select messaging style...</option>
+                <option value="storytelling">Storytelling</option>
+                <option value="educational">Educational</option>
+                <option value="conversational">Conversational</option>
+                <option value="formal">Formal</option>
+                <option value="inspirational">Inspirational</option>
               </select>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Vocabulary Guidelines */}
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-white rounded-xl border border-gray-200 p-6"
+        >
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Vocabulary Guidelines</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Vocabulary to Use
+              </label>
+              <textarea
+                value={formData.vocabulary_to_use}
+                onChange={(e) => setFormData(prev => ({ ...prev, vocabulary_to_use: e.target.value }))}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                placeholder="Words and phrases that represent your brand well..."
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Vocabulary to Avoid
+              </label>
+              <textarea
+                value={formData.vocabulary_to_avoid}
+                onChange={(e) => setFormData(prev => ({ ...prev, vocabulary_to_avoid: e.target.value }))}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                placeholder="Words and phrases to avoid..."
+              />
+            </div>
+          </div>
+        </motion.div>
+
+        {/* AI Writing Guidelines */}
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-white rounded-xl border border-gray-200 p-6"
+        >
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">AI Writing Guidelines</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                AI Writing Instructions
+              </label>
+              <textarea
+                value={formData.ai_writing_guidelines}
+                onChange={(e) => setFormData(prev => ({ ...prev, ai_writing_guidelines: e.target.value }))}
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                placeholder="Specific instructions for AI content generation. How should the AI write for your brand?"
+              />
             </div>
             
             <div>
@@ -215,7 +312,6 @@ export function Settings({ wineryProfile, onProfileUpdate }: SettingsProps) {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
                 placeholder="Tell your winery's unique story..."
               />
-              <p className="text-xs text-gray-500 mt-1">Minimum 50 characters</p>
             </div>
             
             <div>
@@ -237,7 +333,7 @@ export function Settings({ wineryProfile, onProfileUpdate }: SettingsProps) {
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.2 }}
+          transition={{ delay: 0.4 }}
           className="bg-white rounded-xl border border-gray-200 p-6"
         >
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Content Goals</h3>
@@ -268,7 +364,7 @@ export function Settings({ wineryProfile, onProfileUpdate }: SettingsProps) {
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.2 }}
+          transition={{ delay: 0.4 }}
           className="bg-white rounded-xl border border-gray-200 p-6"
         >
           <h3 className="text-lg font-semibold text-gray-900 mb-4">WordPress Integration</h3>
@@ -338,7 +434,7 @@ export function Settings({ wineryProfile, onProfileUpdate }: SettingsProps) {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
+        transition={{ delay: 0.6 }}
         className="flex justify-end"
       >
         <button

@@ -4,11 +4,12 @@
   1. Purpose
     - Discovers local events, seasonal trends, and regional wine topics
     - Generates research briefs for content creation
+    - Creates content that reflects brand voice and local context
 
   2. Functionality
     - Analyzes winery location and seasonal context
     - Researches local events and wine-related topics
-    - Creates structured research briefs
+    - Creates structured research briefs with brand voice integration
 
   3. Security
     - Requires authentication
@@ -27,6 +28,24 @@ interface RequestPayload {
   winery_id: string;
   winery_profile: any;
   test?: boolean;
+}
+
+function buildBrandVoicePrompt(profile: any): string {
+  let prompt = `Content for ${profile.winery_name} in ${profile.location}. `;
+  
+  if (profile.brand_personality_summary) {
+    prompt += `Brand personality: ${profile.brand_personality_summary} `;
+  }
+  
+  if (profile.core_tone_attributes) {
+    prompt += `Tone: ${profile.core_tone_attributes}. `;
+  }
+  
+  if (profile.messaging_style) {
+    prompt += `Style: ${profile.messaging_style}. `;
+  }
+  
+  return prompt;
 }
 
 Deno.serve(async (req: Request) => {
@@ -78,7 +97,7 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Generate research brief
+    // Generate research brief with local context
     const researchBrief = {
       winery_id: winery_id,
       suggested_theme: `Seasonal Wine Trends in ${winery_profile.location}`,
@@ -118,11 +137,23 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Create content based on research
+    // Create content based on research and brand voice
     const contentTitle = `Discovering ${winery_profile.location}: A Wine Lover's Guide`;
-    const contentBody = `<h2>Welcome to ${winery_profile.location}</h2>
+    
+    // Apply brand voice to content
+    const toneDescriptor = winery_profile.core_tone_attributes ? 
+      winery_profile.core_tone_attributes.split(',')[0].trim().toLowerCase() : 'passionate';
+    
+    const messagingStyle = winery_profile.messaging_style || 'storytelling';
+    
+    let contentBody = '';
+    
+    if (messagingStyle === 'storytelling') {
+      contentBody = `<h2>Welcome to ${winery_profile.location}</h2>
     
 <p>As the seasons change, so does the landscape of wine in ${winery_profile.location}. This is an exciting time for wine enthusiasts and newcomers alike to explore what makes our region special.</p>
+
+${winery_profile.backstory ? `<p>${winery_profile.backstory}</p>` : ''}
 
 <h3>What's Happening Now</h3>
 <ul>
@@ -135,7 +166,25 @@ Deno.serve(async (req: Request) => {
 <h3>Upcoming Events</h3>
 <p>Mark your calendars for the Annual Wine Festival coming up next month! This celebration of local wine culture will feature tastings, educational sessions, and the chance to meet fellow wine lovers.</p>
 
-<p>Whether you're a seasoned connoisseur or just beginning your wine journey, ${winery_profile.location} offers something special for everyone. Come discover the passion and tradition that makes our wines truly exceptional.</p>`;
+<p>Whether you're ${winery_profile.target_audience || 'a seasoned connoisseur or just beginning your wine journey'}, ${winery_profile.location} offers something special for everyone. Come discover the ${toneDescriptor} tradition that makes our wines truly exceptional.</p>`;
+    } else {
+      contentBody = `<h2>Exploring ${winery_profile.location}</h2>
+    
+<p>The wine region of ${winery_profile.location} continues to evolve and impress wine enthusiasts worldwide. Here's what you need to know about our area's current wine scene.</p>
+
+<h3>Current Trends</h3>
+<ul>
+<li>Harvest season brings new opportunities for wine discovery</li>
+<li>Increased focus on sustainable winemaking practices</li>
+<li>Growing wine tourism in the region</li>
+<li>Popular food and wine pairing events</li>
+</ul>
+
+<h3>Local Events</h3>
+<p>The Annual Wine Festival next month will showcase the best of ${winery_profile.location}'s wine culture, featuring tastings and educational opportunities.</p>
+
+<p>Visit ${winery_profile.location} to experience the ${toneDescriptor} approach to winemaking that defines our region.</p>`;
+    }
 
     const { data: contentData, error: contentError } = await supabase
       .from('content_calendar')
@@ -172,9 +221,14 @@ Deno.serve(async (req: Request) => {
         success: true,
         data: {
           research_brief: briefData,
-          content: contentData
+          content: contentData,
+          brand_voice_applied: {
+            tone: winery_profile.core_tone_attributes || 'Not specified',
+            style: winery_profile.messaging_style || 'Not specified',
+            personality: winery_profile.brand_personality_summary || 'Not specified'
+          }
         },
-        message: "Research completed and content created successfully"
+        message: "Research completed and personalized content created successfully"
       }),
       {
         headers: {

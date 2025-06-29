@@ -8,10 +8,11 @@ import toast from 'react-hot-toast';
 
 const steps = [
   { id: 1, title: 'Winery Details', description: 'Tell us about your winery' },
-  { id: 2, title: 'Brand Voice', description: 'Define your unique voice' },
-  { id: 3, title: 'Products & Audience', description: 'Your wines and customers' },
-  { id: 4, title: 'Content Goals', description: 'Set your publishing targets' },
-  { id: 5, title: 'WordPress Integration', description: 'Connect your website (optional)' }
+  { id: 2, title: 'Brand Voice', description: 'Define your unique voice and personality' },
+  { id: 3, title: 'Messaging Style', description: 'How you communicate with customers' },
+  { id: 4, title: 'Products & Audience', description: 'Your wines and customers' },
+  { id: 5, title: 'Content Goals', description: 'Set your publishing targets' },
+  { id: 6, title: 'WordPress Integration', description: 'Connect your website (optional)' }
 ];
 
 export function OnboardingWizard() {
@@ -23,7 +24,12 @@ export function OnboardingWizard() {
     winery_name: '',
     owner_name: '',
     location: '',
-    brand_tone: '',
+    brand_personality_summary: '',
+    core_tone_attributes: '',
+    messaging_style: '',
+    vocabulary_to_use: '',
+    vocabulary_to_avoid: '',
+    ai_writing_guidelines: '',
     backstory: '',
     wine_types: [] as string[],
     target_audience: '',
@@ -74,14 +80,15 @@ export function OnboardingWizard() {
       case 1:
         return formData.winery_name && formData.owner_name && formData.location;
       case 2:
-        return formData.brand_tone && formData.backstory.length >= 50;
+        return formData.brand_personality_summary.length >= 50 && formData.core_tone_attributes;
       case 3:
-        return formData.wine_types.length > 0 && formData.target_audience;
+        return formData.messaging_style && formData.ai_writing_guidelines.length >= 100;
       case 4:
-        return formData.content_goals >= 1;
+        return formData.wine_types.length > 0 && formData.target_audience && formData.backstory.length >= 50;
       case 5:
-        // WordPress integration is completely optional
-        return true;
+        return formData.content_goals >= 1;
+      case 6:
+        return true; // WordPress integration is optional
       default:
         return false;
     }
@@ -136,21 +143,102 @@ export function OnboardingWizard() {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Brand Voice *
+                Brand Personality Summary * (minimum 50 characters)
+              </label>
+              <textarea
+                value={formData.brand_personality_summary}
+                onChange={(e) => setFormData(prev => ({ ...prev, brand_personality_summary: e.target.value }))}
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                placeholder="Describe your winery's personality. Are you sophisticated and elegant? Approachable and friendly? Traditional and heritage-focused? Modern and innovative?"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {formData.brand_personality_summary.length}/50 characters minimum
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Core Tone Attributes *
+              </label>
+              <input
+                type="text"
+                value={formData.core_tone_attributes}
+                onChange={(e) => setFormData(prev => ({ ...prev, core_tone_attributes: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                placeholder="e.g., Elegant, Sophisticated, Warm, Approachable, Authentic"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                List 3-5 key words that describe your brand's tone
+              </p>
+            </div>
+          </div>
+        );
+
+      case 3:
+        return (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Messaging Style *
               </label>
               <select
-                value={formData.brand_tone}
-                onChange={(e) => setFormData(prev => ({ ...prev, brand_tone: e.target.value }))}
+                value={formData.messaging_style}
+                onChange={(e) => setFormData(prev => ({ ...prev, messaging_style: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
               >
-                <option value="">Select your brand voice...</option>
-                <option value="elegant">Elegant & Sophisticated</option>
-                <option value="approachable">Approachable & Friendly</option>
-                <option value="traditional">Traditional & Heritage</option>
-                <option value="modern">Modern & Innovative</option>
-                <option value="rustic">Rustic & Authentic</option>
+                <option value="">Select your messaging style...</option>
+                <option value="storytelling">Storytelling - Rich narratives and emotional connections</option>
+                <option value="educational">Educational - Informative and knowledge-sharing</option>
+                <option value="conversational">Conversational - Casual and friendly dialogue</option>
+                <option value="formal">Formal - Professional and sophisticated</option>
+                <option value="inspirational">Inspirational - Motivating and uplifting</option>
               </select>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Vocabulary to Use
+              </label>
+              <textarea
+                value={formData.vocabulary_to_use}
+                onChange={(e) => setFormData(prev => ({ ...prev, vocabulary_to_use: e.target.value }))}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                placeholder="List words and phrases that represent your brand well (e.g., 'crafted', 'artisanal', 'terroir', 'heritage')"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Vocabulary to Avoid
+              </label>
+              <textarea
+                value={formData.vocabulary_to_avoid}
+                onChange={(e) => setFormData(prev => ({ ...prev, vocabulary_to_avoid: e.target.value }))}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                placeholder="List words and phrases to avoid (e.g., 'cheap', 'mass-produced', overly technical jargon)"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                AI Writing Guidelines * (minimum 100 characters)
+              </label>
+              <textarea
+                value={formData.ai_writing_guidelines}
+                onChange={(e) => setFormData(prev => ({ ...prev, ai_writing_guidelines: e.target.value }))}
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                placeholder="Specific instructions for AI content generation. How should the AI write for your brand? What style, tone, and approach should it take?"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {formData.ai_writing_guidelines.length}/100 characters minimum
+              </p>
+            </div>
+          </div>
+        );
+
+      case 4:
+        return (
+          <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Your Winery's Story * (minimum 50 characters)
@@ -166,12 +254,6 @@ export function OnboardingWizard() {
                 {formData.backstory.length}/50 characters minimum
               </p>
             </div>
-          </div>
-        );
-
-      case 3:
-        return (
-          <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Wine Types * (select all that apply)
@@ -221,7 +303,7 @@ export function OnboardingWizard() {
           </div>
         );
 
-      case 4:
+      case 5:
         return (
           <div className="space-y-4">
             <div>
@@ -255,7 +337,7 @@ export function OnboardingWizard() {
           </div>
         );
 
-      case 5:
+      case 6:
         return (
           <div className="space-y-4">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
@@ -381,7 +463,7 @@ export function OnboardingWizard() {
             ) : (
               <button
                 onClick={handleComplete}
-                disabled={loading}
+                disabled={loading || !isStepValid(currentStep)}
                 className="flex items-center px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Setting up...' : 'Complete Setup'}
