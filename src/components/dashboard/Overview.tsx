@@ -14,9 +14,10 @@ import { supabase } from '../../lib/supabase';
 
 interface OverviewProps {
   wineryProfile: any;
+  onSectionChange?: (section: string) => void;
 }
 
-export function Overview({ wineryProfile }: OverviewProps) {
+export function Overview({ wineryProfile, onSectionChange }: OverviewProps) {
   const [stats, setStats] = useState({
     totalContent: 0,
     scheduledContent: 0,
@@ -73,6 +74,12 @@ export function Overview({ wineryProfile }: OverviewProps) {
       console.error('Error fetching overview data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleQuickAction = (action: string) => {
+    if (onSectionChange) {
+      onSectionChange(action);
     }
   };
 
@@ -232,7 +239,10 @@ export function Overview({ wineryProfile }: OverviewProps) {
         >
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
           <div className="space-y-3">
-            <button className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg border border-amber-200 hover:from-amber-100 hover:to-orange-100 transition-colors">
+            <button 
+              onClick={() => handleQuickAction('ai-agents')}
+              className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg border border-amber-200 hover:from-amber-100 hover:to-orange-100 transition-colors"
+            >
               <div className="flex items-center">
                 <Sparkles className="h-5 w-5 text-amber-600 mr-3" />
                 <span className="text-sm font-medium text-gray-900">Generate New Content</span>
@@ -240,7 +250,10 @@ export function Overview({ wineryProfile }: OverviewProps) {
               <span className="text-xs text-amber-600">AI Agents</span>
             </button>
             
-            <button className="w-full flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors">
+            <button 
+              onClick={() => handleQuickAction('calendar')}
+              className="w-full flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors"
+            >
               <div className="flex items-center">
                 <Calendar className="h-5 w-5 text-blue-600 mr-3" />
                 <span className="text-sm font-medium text-gray-900">View Calendar</span>
@@ -248,7 +261,10 @@ export function Overview({ wineryProfile }: OverviewProps) {
               <span className="text-xs text-blue-600">Schedule</span>
             </button>
             
-            <button className="w-full flex items-center justify-between p-4 bg-green-50 rounded-lg border border-green-200 hover:bg-green-100 transition-colors">
+            <button 
+              onClick={() => handleQuickAction('analytics')}
+              className="w-full flex items-center justify-between p-4 bg-green-50 rounded-lg border border-green-200 hover:bg-green-100 transition-colors"
+            >
               <div className="flex items-center">
                 <BarChart3 className="h-5 w-5 text-green-600 mr-3" />
                 <span className="text-sm font-medium text-gray-900">View Analytics</span>

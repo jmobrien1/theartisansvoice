@@ -55,10 +55,14 @@ export function Dashboard() {
     }
   };
 
+  const handleSectionChange = (section: DashboardSection) => {
+    setActiveSection(section);
+  };
+
   const renderContent = () => {
     switch (activeSection) {
       case 'overview':
-        return <Overview wineryProfile={wineryProfile} />;
+        return <Overview wineryProfile={wineryProfile} onSectionChange={handleSectionChange} />;
       case 'pipeline':
         return <ContentPipeline wineryProfile={wineryProfile} />;
       case 'calendar':
@@ -70,7 +74,7 @@ export function Dashboard() {
       case 'settings':
         return <Settings wineryProfile={wineryProfile} onProfileUpdate={setWineryProfile} />;
       default:
-        return <Overview wineryProfile={wineryProfile} />;
+        return <Overview wineryProfile={wineryProfile} onSectionChange={handleSectionChange} />;
     }
   };
 
