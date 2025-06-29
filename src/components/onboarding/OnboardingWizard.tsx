@@ -80,7 +80,7 @@ export function OnboardingWizard() {
       case 4:
         return formData.content_goals >= 1;
       case 5:
-        // WordPress integration is optional - always return true
+        // WordPress integration is completely optional
         return true;
       default:
         return false;
