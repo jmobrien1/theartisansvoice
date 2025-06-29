@@ -27,7 +27,7 @@ export function OnboardingWizard() {
     owner_name: '',
     location: '',
     brand_personality_summary: '',
-    core_tone_attributes: '',
+    brand_tone: '',
     messaging_style: '',
     vocabulary_to_use: '',
     vocabulary_to_avoid: '',
@@ -79,7 +79,7 @@ export function OnboardingWizard() {
       setFormData(prev => ({
         ...prev,
         brand_personality_summary: analysis.brand_personality_summary || '',
-        core_tone_attributes: analysis.core_tone_attributes || '',
+        brand_tone: analysis.brand_tone || '',
         messaging_style: analysis.messaging_style || '',
         vocabulary_to_use: analysis.vocabulary_to_use || '',
         vocabulary_to_avoid: analysis.vocabulary_to_avoid || '',
@@ -125,7 +125,7 @@ export function OnboardingWizard() {
       case 1:
         return formData.winery_name && formData.owner_name && formData.location;
       case 2:
-        return formData.brand_personality_summary.length >= 50 && formData.core_tone_attributes;
+        return formData.brand_personality_summary.length >= 50 && formData.brand_tone;
       case 3:
         return formData.messaging_style && formData.ai_writing_guidelines.length >= 100;
       case 4:
@@ -265,12 +265,12 @@ export function OnboardingWizard() {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Core Tone Attributes *
+                  Brand Tone *
                 </label>
                 <input
                   type="text"
-                  value={formData.core_tone_attributes}
-                  onChange={(e) => setFormData(prev => ({ ...prev, core_tone_attributes: e.target.value }))}
+                  value={formData.brand_tone}
+                  onChange={(e) => setFormData(prev => ({ ...prev, brand_tone: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
                   placeholder="e.g., Elegant, Sophisticated, Warm, Approachable, Authentic"
                 />

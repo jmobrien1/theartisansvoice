@@ -37,8 +37,8 @@ function buildBrandVoicePrompt(profile: any): string {
     prompt += `Brand personality: ${profile.brand_personality_summary} `;
   }
   
-  if (profile.core_tone_attributes) {
-    prompt += `Tone: ${profile.core_tone_attributes}. `;
+  if (profile.brand_tone) {
+    prompt += `Tone: ${profile.brand_tone}. `;
   }
   
   if (profile.messaging_style) {
@@ -144,8 +144,8 @@ Deno.serve(async (req: Request) => {
       if (contentType === 'blog_post') {
         title = `${theme} - ${winery_profile.winery_name}`;
         
-        const toneDescriptor = winery_profile.core_tone_attributes ? 
-          winery_profile.core_tone_attributes.split(',')[0].trim().toLowerCase() : 'passionate';
+        const toneDescriptor = winery_profile.brand_tone ? 
+          winery_profile.brand_tone.split(',')[0].trim().toLowerCase() : 'passionate';
         
         content = `<h2>${theme}</h2>
         
@@ -179,7 +179,7 @@ ${winery_profile.wine_types?.slice(0, 2).join(' & ') || 'Amazing wines'} availab
 
 <p>Dear Wine Lovers,</p>
 
-<p>We're excited to share this month's update from ${winery_profile.winery_name}. Our team has been working ${winery_profile.core_tone_attributes ? winery_profile.core_tone_attributes.split(',')[0].trim().toLowerCase() : 'hard'} to bring you the finest wines from ${winery_profile.location}.</p>
+<p>We're excited to share this month's update from ${winery_profile.winery_name}. Our team has been working ${winery_profile.brand_tone ? winery_profile.brand_tone.split(',')[0].trim().toLowerCase() : 'hard'} to bring you the finest wines from ${winery_profile.location}.</p>
 
 <h3>Featured This Month</h3>
 <p>Discover our ${winery_profile.wine_types?.[0] || 'signature wine'} and learn about the ${winery_profile.messaging_style || 'passion'} that goes into every bottle.</p>
@@ -232,7 +232,7 @@ ${winery_profile.wine_types?.slice(0, 2).join(' & ') || 'Amazing wines'} availab
             posting_schedule: "Every 2 days for optimal engagement",
             brand_voice_applied: {
               personality: winery_profile.brand_personality_summary || 'Not specified',
-              tone: winery_profile.core_tone_attributes || 'Not specified',
+              tone: winery_profile.brand_tone || 'Not specified',
               style: winery_profile.messaging_style || 'Not specified'
             }
           }

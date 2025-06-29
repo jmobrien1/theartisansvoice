@@ -49,7 +49,7 @@ You are the "Sommelier" Writing Agent, an expert AI content creator for craft be
 
 **1. Brand Personality:** ${brandVoice.brand_personality_summary || 'Not specified - use professional, authentic tone'}
 
-**2. Core Tone:** ${brandVoice.core_tone_attributes || 'Not specified - use warm, approachable tone'}
+**2. Brand Tone:** ${brandVoice.brand_tone || 'Not specified - use warm, approachable tone'}
 
 **3. Messaging Style:** ${brandVoice.messaging_style || 'Not specified - use storytelling approach'}
 
@@ -407,7 +407,7 @@ ${content_request.call_to_action ? `<p><strong>${content_request.call_to_action}
               content: contentData,
               brand_voice_applied: {
                 personality: wineryProfile.brand_personality_summary || 'Not specified',
-                tone_attributes: wineryProfile.core_tone_attributes || 'Not specified',
+                tone_attributes: wineryProfile.brand_tone || 'Not specified',
                 messaging_style: wineryProfile.messaging_style || 'Not specified',
                 vocabulary_used: wineryProfile.vocabulary_to_use || 'Not specified',
                 vocabulary_avoided: wineryProfile.vocabulary_to_avoid || 'Not specified',
@@ -513,7 +513,7 @@ ${content_request.call_to_action ? `<p><strong>${content_request.call_to_action}
               content: contentData,
               brand_voice_applied: {
                 personality: wineryProfile.brand_personality_summary || 'Not specified',
-                tone_attributes: wineryProfile.core_tone_attributes || 'Not specified',
+                tone_attributes: wineryProfile.brand_tone || 'Not specified',
                 messaging_style: wineryProfile.messaging_style || 'Not specified',
                 vocabulary_used: wineryProfile.vocabulary_to_use || 'Not specified',
                 vocabulary_avoided: wineryProfile.vocabulary_to_avoid || 'Not specified',

@@ -37,8 +37,8 @@ function buildBrandVoicePrompt(profile: any): string {
     prompt += `Brand personality: ${profile.brand_personality_summary} `;
   }
   
-  if (profile.core_tone_attributes) {
-    prompt += `Tone: ${profile.core_tone_attributes}. `;
+  if (profile.brand_tone) {
+    prompt += `Tone: ${profile.brand_tone}. `;
   }
   
   if (profile.messaging_style) {
@@ -141,8 +141,8 @@ Deno.serve(async (req: Request) => {
     const contentTitle = `Discovering ${winery_profile.location}: A Wine Lover's Guide`;
     
     // Apply brand voice to content
-    const toneDescriptor = winery_profile.core_tone_attributes ? 
-      winery_profile.core_tone_attributes.split(',')[0].trim().toLowerCase() : 'passionate';
+    const toneDescriptor = winery_profile.brand_tone ? 
+      winery_profile.brand_tone.split(',')[0].trim().toLowerCase() : 'passionate';
     
     const messagingStyle = winery_profile.messaging_style || 'storytelling';
     
@@ -224,7 +224,7 @@ ${winery_profile.backstory ? `<p>${winery_profile.backstory}</p>` : ''}
           research_brief: briefData,
           content: contentData,
           brand_voice_applied: {
-            tone: winery_profile.core_tone_attributes || 'Not specified',
+            tone: winery_profile.brand_tone || 'Not specified',
             style: winery_profile.messaging_style || 'Not specified',
             personality: winery_profile.brand_personality_summary || 'Not specified'
           }

@@ -193,7 +193,7 @@ export function AIAgents({ wineryProfile }: AIAgentsProps) {
             <div className="text-sm text-gray-500">
               {[
                 wineryProfile.brand_personality_summary,
-                wineryProfile.core_tone_attributes,
+                wineryProfile.brand_tone,
                 wineryProfile.messaging_style,
                 wineryProfile.ai_writing_guidelines
               ].filter(Boolean).length}/4 sections complete

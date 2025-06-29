@@ -49,9 +49,9 @@ function buildBrandVoicePrompt(profile: any): string {
     prompt += `Brand Personality: ${profile.brand_personality_summary} `;
   }
   
-  // Core Tone Attributes
-  if (profile.core_tone_attributes) {
-    prompt += `Your tone should be: ${profile.core_tone_attributes}. `;
+  // Brand Tone
+  if (profile.brand_tone) {
+    prompt += `Your tone should be: ${profile.brand_tone}. `;
   }
   
   // Messaging Style
@@ -115,8 +115,8 @@ function generateContentFromRequest(profile: any, request: ContentRequest): { ti
   }
 
   // Generate content based on type and talking points
-  const toneDescriptor = profile.core_tone_attributes ? 
-    profile.core_tone_attributes.split(',')[0].trim().toLowerCase() : 'passionate';
+  const toneDescriptor = profile.brand_tone ? 
+    profile.brand_tone.split(',')[0].trim().toLowerCase() : 'passionate';
   
   const preferredVocab = profile.vocabulary_to_use ? 
     profile.vocabulary_to_use.split(',')[0].trim() : 'crafted';
@@ -299,7 +299,7 @@ ${winery_profile.backstory ? `<h3>Our Story</h3>
 <p>${winery_profile.backstory}</p>` : ''}
 
 <h3>Our Wine Collection</h3>
-<p>We take immense pride in crafting wines that reflect our ${winery_profile.core_tone_attributes || 'passionate'} approach to winemaking. Each bottle tells a story of dedication, tradition, and the unique terroir of ${winery_profile.location}.</p>
+<p>We take immense pride in crafting wines that reflect our ${winery_profile.brand_tone || 'passionate'} approach to winemaking. Each bottle tells a story of dedication, tradition, and the unique terroir of ${winery_profile.location}.</p>
 
 ${winery_profile.wine_types && winery_profile.wine_types.length > 0 ? `
 <p>Our collection features:</p>
@@ -315,8 +315,8 @@ ${winery_profile.wine_types.map((wine: string) => `<li><strong>${wine}</strong> 
       } else if (targetContentType === 'social_media') {
         contentTitle = `${winery_profile.winery_name} - Crafting Excellence`;
         
-        const toneWords = winery_profile.core_tone_attributes ? 
-          winery_profile.core_tone_attributes.split(',')[0].trim().toLowerCase() : 'passionate';
+        const toneWords = winery_profile.brand_tone ? 
+          winery_profile.brand_tone.split(',')[0].trim().toLowerCase() : 'passionate';
         
         contentBody = `🍷 Discover the essence of ${winery_profile.location} in every glass at ${winery_profile.winery_name}! 
 
@@ -336,7 +336,7 @@ ${winery_profile.wine_types && winery_profile.wine_types.length > 0 ?
 <p>We hope this newsletter finds you well and enjoying exceptional wine! Here's what's been happening at our winery in ${winery_profile.location}.</p>
 
 <h3>What's New</h3>
-<p>We're excited to share the latest developments in our winemaking journey. Our commitment to ${winery_profile.core_tone_attributes || 'excellence'} continues to drive everything we do.</p>
+<p>We're excited to share the latest developments in our winemaking journey. Our commitment to ${winery_profile.brand_tone || 'excellence'} continues to drive everything we do.</p>
 
 ${winery_profile.wine_types && winery_profile.wine_types.length > 0 ? `
 <h3>Featured Wine</h3>
@@ -387,7 +387,7 @@ ${winery_profile.wine_types && winery_profile.wine_types.length > 0 ? `
           content: contentData,
           brand_voice_applied: {
             personality: winery_profile.brand_personality_summary || 'Not specified',
-            tone_attributes: winery_profile.core_tone_attributes || 'Not specified',
+            tone_attributes: winery_profile.brand_tone || 'Not specified',
             messaging_style: winery_profile.messaging_style || 'Not specified'
           },
           content_request_used: !!content_request,
