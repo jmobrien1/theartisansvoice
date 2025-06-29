@@ -19,7 +19,8 @@ import {
   X,
   Settings,
   Save,
-  ExternalLink
+  ExternalLink,
+  CalendarDays
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
@@ -48,6 +49,11 @@ interface ScheduleSettings {
   timezone: string;
 }
 
+interface DateRange {
+  start_date: string;
+  end_date: string;
+}
+
 export function EventEngine({ wineryProfile }: EventEngineProps) {
   const [events, setEvents] = useState<ProactiveEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,11 +62,20 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingEvent, setDeletingEvent] = useState<ProactiveEvent | null>(null);
   const [showScheduleSettings, setShowScheduleSettings] = useState(false);
+  const [showDateRangeModal, setShowDateRangeModal] = useState(false);
   const [scheduleSettings, setScheduleSettings] = useState<ScheduleSettings>({
     enabled: true,
     day_of_week: 1, // Monday
     hour: 9, // 9 AM
     timezone: 'America/New_York'
+  });
+  const [dateRange, setDateRange] = useState<DateRange>({
+    start_date: new Date().toISOString().split('T')[0],
+    end_date: (() => {
+      const date = new Date();
+      date.setMonth(date.getMonth() + 3);
+      return date.toISOString().split('T')[0];
+    })()
   });
   const [stats, setStats] = useState({
     totalEvents: 0,
@@ -203,11 +218,17 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
     }
   };
 
-  const triggerManualScan = async () => {
+  const triggerManualScan = async (customDateRange?: DateRange) => {
     setScanning(true);
     
     try {
-      console.log('Triggering manual scan...');
+      console.log('Triggering manual scan with date range:', customDateRange || dateRange);
+      
+      const requestBody = { 
+        manual_trigger: true,
+        winery_id: wineryProfile.id,
+        date_range: customDateRange || dateRange
+      };
       
       // Call the scan-local-events function
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/scan-local-events`, {
@@ -216,10 +237,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ 
-          manual_trigger: true,
-          winery_id: wineryProfile.id 
-        })
+        body: JSON.stringify(requestBody)
       });
 
       const result = await response.json();
@@ -231,10 +249,22 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
       console.log('Scan result:', result);
 
       if (result.success) {
-        if (result.events_processed > 0) {
-          toast.success(`🎉 Found ${result.events_processed} real events and generated ${result.content_generated || 0} pieces of content!`);
+        const startDate = new Date(result.date_range?.start || dateRange.start_date);
+        const endDate = new Date(result.date_range?.end || dateRange.end_date);
+        const dateRangeText = `${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`;
+        
+        if (result.events_final > 0) {
+          toast.success(`🎉 Found ${result.events_final} real events (${dateRangeText}) from ${result.scraped_sources} sources! Research briefs created.`);
+        } else if (result.events_extracted > 0) {
+          toast.success(`✅ Scan completed! Found ${result.events_extracted} events but ${result.competitor_events_filtered} were competitor events (filtered out).`);
         } else {
-          toast.success(`✅ Scan completed! No new relevant events found in current sources.`);
+          toast.success(`✅ Scan completed for ${dateRangeText}! No new relevant events found in current sources.`);
+        }
+        
+        // Show source performance if available
+        if (result.source_performance) {
+          const successfulSources = result.source_performance.filter((s: any) => s.success && s.events_found > 0);
+          console.log('Successful sources:', successfulSources.map((s: any) => `${s.name}: ${s.events_found} events`));
         }
       } else {
         toast.error(`❌ Scan failed: ${result.error || 'Unknown error'}`);
@@ -263,6 +293,11 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
     } finally {
       setScanning(false);
     }
+  };
+
+  const handleDateRangeScan = () => {
+    setShowDateRangeModal(false);
+    triggerManualScan(dateRange);
   };
 
   const handleDeleteEvent = async () => {
@@ -352,9 +387,16 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Event Engine</h1>
-          <p className="text-gray-600">Proactive local event discovery and content generation</p>
+          <p className="text-gray-600">Proactive local event discovery from ALL sources with date range control</p>
         </div>
         <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setShowDateRangeModal(true)}
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <CalendarDays className="h-4 w-4 mr-2" />
+            Date Range Scan
+          </button>
           <button
             onClick={() => setShowScheduleSettings(true)}
             className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
@@ -363,19 +405,19 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
             Schedule
           </button>
           <button
-            onClick={triggerManualScan}
+            onClick={() => triggerManualScan()}
             disabled={scanning}
             className="flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 transition-colors shadow-lg"
           >
             {scanning ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Scanning Real Events...
+                Scanning ALL Sources...
               </>
             ) : (
               <>
                 <Zap className="h-4 w-4 mr-2" />
-                Manual Scan
+                Quick Scan (3 Months)
               </>
             )}
           </button>
@@ -393,9 +435,9 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
             <Globe className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h3 className="font-semibold text-gray-900">🤖 Real Event Discovery Engine</h3>
+            <h3 className="font-semibold text-gray-900">🤖 FIXED: All Sources + Future Events Engine</h3>
             <p className="text-sm text-gray-600">
-              AI scrapes RSS feeds and event websites, then creates relevant content opportunities from REAL data
+              Now properly fetches from ALL 11 sources (RSS + HTML) and finds events in your specified date range
             </p>
           </div>
         </div>
@@ -406,8 +448,8 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
               <span className="text-blue-600 font-semibold text-xs">1</span>
             </div>
             <div>
-              <p className="font-medium text-gray-900">RSS + Web Scraping</p>
-              <p className="text-gray-600">Fetches structured RSS feeds and scrapes curated tourism websites for actual events</p>
+              <p className="font-medium text-gray-900">ALL Sources (11 total)</p>
+              <p className="text-gray-600">7 RSS feeds + 4 HTML sources from Visit Loudoun, FXVA, Virginia Tourism, and more</p>
             </div>
           </div>
           
@@ -416,8 +458,8 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
               <span className="text-purple-600 font-semibold text-xs">2</span>
             </div>
             <div>
-              <p className="font-medium text-gray-900">AI Analysis</p>
-              <p className="text-gray-600">Identifies wine-relevant events and opportunities from real scraped data</p>
+              <p className="font-medium text-gray-900">Date Range Control</p>
+              <p className="text-gray-600">Scan for events in next 3 months (default) or set custom date ranges</p>
             </div>
           </div>
           
@@ -426,10 +468,39 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
               <span className="text-green-600 font-semibold text-xs">3</span>
             </div>
             <div>
-              <p className="font-medium text-gray-900">Content Creation</p>
-              <p className="text-gray-600">Generates draft content for each real discovered event with links</p>
+              <p className="font-medium text-gray-900">User Selection</p>
+              <p className="text-gray-600">No automatic content generation - you choose which events to create content for</p>
             </div>
           </div>
+        </div>
+      </motion.div>
+
+      {/* Current Date Range Display */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="bg-white rounded-xl border border-gray-200 p-4"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <CalendarDays className="h-5 w-5 text-blue-600" />
+            <div>
+              <p className="font-medium text-gray-900">Current Scan Range</p>
+              <p className="text-sm text-gray-600">
+                {new Date(dateRange.start_date).toLocaleDateString()} to {new Date(dateRange.end_date).toLocaleDateString()}
+                <span className="ml-2 text-blue-600">
+                  ({Math.ceil((new Date(dateRange.end_date).getTime() - new Date(dateRange.start_date).getTime()) / (1000 * 60 * 60 * 24))} days)
+                </span>
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowDateRangeModal(true)}
+            className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+          >
+            Change Range
+          </button>
         </div>
       </motion.div>
 
@@ -635,7 +706,7 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
             <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500">No events discovered yet</p>
             <p className="text-sm text-gray-400 mt-1">
-              Click "Manual Scan" to discover real local events now
+              Click "Quick Scan" to discover real local events from ALL sources now
             </p>
           </div>
         )}
@@ -658,8 +729,8 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
               <p className="text-sm text-gray-600">
                 {scheduleSettings.enabled ? (
                   <>
-                    Automatically scans for real events every {getDayName(scheduleSettings.day_of_week)} at {formatTime(scheduleSettings.hour)} ({scheduleSettings.timezone}).
-                    When relevant events are found, draft content is automatically created with event links.
+                    Automatically scans ALL sources for real events every {getDayName(scheduleSettings.day_of_week)} at {formatTime(scheduleSettings.hour)} ({scheduleSettings.timezone}).
+                    When relevant events are found, research briefs are created (no automatic content generation).
                   </>
                 ) : (
                   'Automatic scanning is currently disabled. Use manual scan or enable scheduling.'
@@ -675,6 +746,79 @@ export function EventEngine({ wineryProfile }: EventEngineProps) {
           </button>
         </div>
       </motion.div>
+
+      {/* Date Range Modal */}
+      {showDateRangeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-xl shadow-xl max-w-md w-full p-6"
+          >
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                <CalendarDays className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Custom Date Range Scan</h3>
+                <p className="text-sm text-gray-600">Scan for events in a specific date range</p>
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Start Date
+                </label>
+                <input
+                  type="date"
+                  value={dateRange.start_date}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, start_date: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  End Date
+                </label>
+                <input
+                  type="date"
+                  value={dateRange.end_date}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, end_date: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              
+              <div className="bg-blue-50 rounded-lg p-3">
+                <p className="text-sm text-blue-800">
+                  <strong>Duration:</strong> {Math.ceil((new Date(dateRange.end_date).getTime() - new Date(dateRange.start_date).getTime()) / (1000 * 60 * 60 * 24))} days
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  Recommended: 1-6 months for best results
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => setShowDateRangeModal(false)}
+                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDateRangeScan}
+                disabled={scanning}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+              >
+                <Zap className="h-4 w-4 mr-2" />
+                {scanning ? 'Scanning...' : 'Scan Range'}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Schedule Settings Modal */}
       {showScheduleSettings && (
