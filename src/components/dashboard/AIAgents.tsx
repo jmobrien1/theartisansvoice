@@ -77,18 +77,22 @@ export function AIAgents({ wineryProfile }: AIAgentsProps) {
         })
       });
 
+      // Parse the response body first
+      const result = await response.json();
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // Use the specific error message from the API response
+        const errorMessage = result.error || `HTTP error! status: ${response.status}`;
+        throw new Error(errorMessage);
       }
 
-      const result = await response.json();
       setResults(prev => ({ ...prev, [agentId]: result }));
     } catch (error) {
       console.error(`Error running ${agentId}:`, error);
       setResults(prev => ({ 
         ...prev, 
         [agentId]: { 
-          error: 'Failed to run agent. Please check your configuration.' 
+          error: error instanceof Error ? error.message : 'Failed to run agent. Please check your configuration.' 
         } 
       }));
     } finally {
@@ -176,6 +180,11 @@ export function AIAgents({ wineryProfile }: AIAgentsProps) {
                     <div className="text-red-600 text-sm">
                       <p className="font-medium">Error:</p>
                       <p>{results[agent.id].error}</p>
+                      {results[agent.id].error.includes('WordPress configuration') && (
+                        <p className="mt-2 text-blue-600">
+                          <span className="font-medium">Tip:</span> Configure your WordPress settings in the Settings tab to use this agent.
+                        </p>
+                      )}
                     </div>
                   ) : (
                     <div className="text-green-600 text-sm">
